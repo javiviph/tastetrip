@@ -6,6 +6,7 @@ import { minDistanceToRoute, isPoiForward } from '../utils/geo';
 import { processAgentTurn, synthesizeSpeech } from '../utils/ai';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
 
 const VoiceAssistant = ({ onSearchRequest }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -89,7 +90,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 ? `Hay ${count} paradas en tu camino${best ? `, y la mejor valorada es ${best.name}` : ''}.`
                 : `No encontré paradas con los filtros actuales.`;
 
-            speak(summary, true);
+            speak(summary, !isMobile);
         }
     }, [totalRoute, baseRoute, routeDetails?.destinationName, isOpen]);
 
@@ -221,7 +222,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             result = await processAgentTurn(transcript, appState, chatHistoryRef.current);
         } catch (e) {
             console.error('Agent error:', e);
-            speak('Lo siento, ha ocurrido un error. ¿Puedes repetirlo?', true);
+            speak('Lo siento, ha ocurrido un error. ¿Puedes repetirlo?', !isMobile);
             return;
         }
 
@@ -237,7 +238,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         }
 
         // Speak Gemini's response
-        await speak(result.speak || null, true);
+        await speak(result.speak || null, !isMobile);
     };
 
     // ── Start listening ───────────────────────────────────────────────────────
@@ -258,6 +259,10 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         };
 
         recognition.onerror = (e) => {
+            console.warn('[VA] Speech Error:', e.error, e.message);
+            if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                alert('El micrófono está bloqueado. Otorga permiso o abre esta web en el navegador nativo (Safari/Chrome), no desde una app como Instagram.');
+            }
             if (e.error !== 'aborted' && e.error !== 'no-speech') changeState('IDLE');
             else if (e.error === 'no-speech') changeState('IDLE');
         };
@@ -281,7 +286,11 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             chatHistoryRef.current = [];
             pendingOriginRef.current = '';
             pendingDestRef.current = '';
-            speak('¡Hola! ¿Desde dónde sales y hacia dónde vas?', true);
+            // Pre-request permissions if mobile to avoid initial block if possible
+            if (isMobile) {
+                try { navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => { }); } catch (e) { }
+            }
+            speak('¡Hola! ¿Desde dónde sales y hacia dónde vas?', !isMobile);
         } else {
             isOpenRef.current = false;
             setIsOpen(false);
