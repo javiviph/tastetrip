@@ -1,0 +1,402 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary: #FF4D00;
+  --primary-hover: #E64500;
+  --secondary: #1A1A1A;
+  --accent: #FFD700;
+  --bg: #FFFFFF;
+  --bg-offset: #F8F9FA;
+  --text: #121212;
+  --text-muted: #666666;
+  --border: #EEEEEE;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --glass: rgba(255, 255, 255, 0.8);
+  --radius: 12px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme='dark'] {
+  --primary: #FF5E1A;
+  --primary-hover: #FF7033;
+  --secondary: #0A0A0A;
+  --accent: #FFD700;
+  --bg: #121212;
+  --bg-offset: #1E1E1E;
+  --text: #F8F9FA;
+  --text-muted: #A0A0A0;
+  --border: #2A2A2A;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --glass: rgba(30, 30, 30, 0.8);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  transition: var(--transition);
+}
+
+input {
+  font-family: inherit;
+}
+
+.glass-morphism {
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(255, 77, 0, 0.2);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 77, 0, 0.3);
+}
+
+.btn-secondary {
+  background-color: var(--bg-offset);
+  color: var(--text);
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background-color: var(--border);
+}
+
+.card {
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  transition: var(--transition);
+}
+
+.card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-4px);
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Custom range slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(255, 77, 0, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 10px rgba(255, 77, 0, 0.5);
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.1);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(255, 77, 0, 0.4);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+/* Custom Photo Markers on Map (Square/Polaroid style) */
+.custom-poi-marker {
+  background: none !important;
+  border: none !important;
+  overflow: visible !important;
+  z-index: 500 !important;
+  /* Base z-index for our custom markers */
+}
+
+.custom-poi-marker.is-hovered {
+  z-index: 10000 !important;
+  /* Force to absolute top when hovered */
+}
+
+.custom-poi-marker.is-selected {
+  z-index: 9000 !important;
+  /* Keep selected one above others but below hover */
+}
+
+.poi-marker-container {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  background: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  /* The white frame */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  /* Subtle border for better definition */
+}
+
+/* Marker tail/arrow */
+.poi-marker-container::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid white;
+  transition: all 0.2s ease-in-out;
+}
+
+.poi-marker-img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 5px;
+  object-fit: cover;
+  display: block;
+}
+
+.poi-marker-container.hovered {
+  z-index: 1000 !important;
+  transform: scale(1.4) translateY(-8px);
+  background: var(--primary);
+  box-shadow: 0 10px 20px rgba(255, 77, 0, 0.3) !important;
+}
+
+.poi-marker-container.hovered::after {
+  border-top-color: var(--primary);
+  bottom: -5px;
+}
+
+.poi-marker-container.selected {
+  background: var(--primary);
+  box-shadow: 0 0 0 4px rgba(255, 77, 0, 0.3) !important;
+}
+
+.poi-marker-container.selected::after {
+  border-top-color: var(--primary);
+}
+
+/* Map Marker Hover Labels */
+.poi-marker-label {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-10px);
+  background: var(--secondary);
+  /* High contrast background */
+  color: white;
+  /* High contrast text */
+  padding: 8px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 9999 !important;
+  /* Extremely high z-index */
+}
+
+.poi-marker-container.hovered .poi-marker-label {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Add a small arrow to the label pointing to the marker */
+.poi-marker-label::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 5px solid var(--secondary);
+}
+
+.poi-label-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: white;
+  line-height: 1.2;
+}
+
+.poi-label-rating {
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Base Layout for Desktop */
+.navbar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  z-index: 1000;
+  margin: 20px;
+  border-radius: 20px;
+}
+
+.app-container {
+  padding: 110px 40px 40px;
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 32px;
+  height: 100vh;
+}
+
+.sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+/* Responsive Mobile Layout */
+@media (max-width: 900px) {
+  .navbar-container {
+    margin: 10px;
+    padding: 0 16px;
+    height: 60px;
+  }
+
+  .app-container {
+    padding: 80px 16px 16px;
+    display: flex;
+    flex-direction: column-reverse;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .sidebar-panel {
+    padding-right: 0;
+    overflow-y: visible;
+  }
+
+  /* Make MapView have a fixed height on mobile or flexible */
+  .map-panel {
+    height: 400px;
+    /* Fixed map height on mobile */
+    min-height: 400px;
+    width: 100%;
+    position: relative !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .navbar-container h1 {
+    font-size: 20px !important;
+  }
+
+  .app-container {
+    padding-top: 80px;
+  }
+
+  .map-panel {
+    height: 350px;
+    min-height: 350px;
+  }
+
+  .itinerary-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.itinerary-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+  background-color: var(--bg-offset);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+}
