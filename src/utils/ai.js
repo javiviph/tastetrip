@@ -44,16 +44,21 @@ function regexFallback(transcript, appState) {
     function extractStopCity(text) {
         // Match: "paro en X", "parar en X", "para en X", "pare en X"
         // also: "también paro en X", "quiero parar en X", "voy a parar en X", "me paro en X"
+        // and: "después de Y paro en X", "sí después de Y paro en X"
+        // and: "pasemos por X", "pasar por X", "quiero pasar por X"
         const m1 = text.match(
-            /(?:tambi[eé]n\s+)?(?:(?:quiero?|voy\s+a)\s+)?(?:me\s+)?par(?:o|ar?|e)\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i
+            /(?:(?:despu[eé]s\s+de\s+[a-záéíóúñ]+\s+)?)(?:tambi[eé]n\s+)?(?:(?:quiero?|voy\s+a|pues)\s+)?(?:me\s+)?(?:par(?:o|ar?|e|amo?s?)\s+en|pase?mo?s?\s+por)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i
         );
         if (m1) return cleanCity(m1[1].trim());
-        // Match: "paso por X", "pasar por X", "pasando por X"
-        const m2 = text.match(/pasan?d?o?\s+por\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        // Match: "pasando por X", "quiero pasar por X"
+        const m2 = text.match(/(?:tambi[eé]n\s+)?(?:quiero?\s+)?(?:pasar?|pasan?d?o?)\s+por\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
         if (m2) return cleanCity(m2[1].trim());
         // Match: "parada en X", "hacer parada en X", "una parada en X"
-        const m3 = text.match(/(?:hacer\s+)?(?:una\s+)?parada\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        const m3 = text.match(/(?:(?:hacer|a[ñn]adir)\s+)?(?:una\s+)?parada\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
         if (m3) return cleanCity(m3[1].trim());
+        // Match: "¿y si paramos en X?" / "¿y si pasamos por X?"
+        const m4 = text.match(/(?:(?:y\s+)?si\s+)?(?:paramos\s+en|pasamos\s+por)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        if (m4) return cleanCity(m4[1].trim());
         return null;
     }
 
@@ -89,28 +94,41 @@ function regexFallback(transcript, appState) {
         }
         // City name answer — only if response is short and looks like a city, NOT a full sentence
         if (!/quita|elimina|borra|restaurante|añade|filtro|qué|cómo|dónde|hay|no\s/.test(lower)) {
-            const cleaned = cleanCity(transcript);
-            // Must be 1-3 words and not contain verbs / sentence structure
-            if (cleaned && cleaned.split(' ').length <= 3 && !/\b(salgo|voy|quiero|paro|quiere|tengo|vamos)\b/.test(lower)) {
+            let cleaned = cleanCity(transcript).replace(/^(sí\s+a|pues\s+sí\s+a|sí|pues|bueno)\s+/i, '');
+            // Must be 1-4 words and not contain verbs / sentence structure
+            if (cleaned && cleaned.split(' ').length <= 4 && !/\b(salgo|voy|quiero|paro|quiere|tengo|vamos)\b/.test(lower)) {
                 if (o && d) return { speak: `Parada en ${cleaned} añadida, ruta recalculando.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [cleaned] } };
             }
         }
     }
 
     // ── PRIORITY 3: Remove ─────────────────────────────────────────────────────
-    if (/quita|elimina|borra|saca/.test(lower)) {
-        // Removing a city waypoint
-        if (/parada|ciudad|paso|ruta|escala/.test(lower) || !addedRoutePoints.length) {
-            const cityMatch = lower.match(/(?:quita|elimina|borra|saca)(?:\s+(?:la\s+)?parada)?(?:\s+de)?\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
-            const city = cityMatch ? cleanCity(cityMatch[1]) : null;
-            if (city) return { speak: `${city} quitada de la ruta.`, action: 'remove_waypoint', actionArgs: { waypoints: [city] } };
-        }
-        // Removing a restaurant
+    if (/\b(quita(?:r)?|elimina(?:r)?|borra(?:r)?|saca(?:r)?)\b/.test(lower)) {
+        // Removing a restaurant (Do this first so "quita casa lucio" doesn't trigger city removal)
         const m = addedRoutePoints.find(p => p.name.toLowerCase().split(/[\s,]+/).some(w => w.length > 2 && lower.includes(w)));
         if (m) return { speak: `Quitado ${m.name}.`, action: 'remove_poi', actionArgs: { poi: m } };
-        // Try to remove waypoint by name
-        const anyCity = lower.match(/(?:quita|elimina|borra|saca)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
-        if (anyCity) return { speak: `Parada eliminada.`, action: 'remove_waypoint', actionArgs: { waypoints: [cleanCity(anyCity[1])] } };
+
+        // Removing a city waypoint
+        if (/parada|ciudad|paso|ruta|escala/.test(lower) || !addedRoutePoints.length) {
+            const cityMatch = lower.match(/(?:quita(?:r)?|elimina(?:r)?|borra(?:r)?|saca(?:r)?)(?:\s+(?:la\s+)?parada(?:s)?)?(?:\s+de)?\s+(?:la\s+ruta\s+(?:de\s+)?)?([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
+            let city = cityMatch ? cleanCity(cityMatch[1]) : null;
+            if (city) {
+                city = city.replace(/^(de\s+la\s+ruta|la\s+ruta)$/i, '').trim();
+                if (city.length > 2 && city !== 'la ruta' && city !== 'parada' && city !== 'ruta' && city !== 'la parada') {
+                    return { speak: `${city} quitada de la ruta.`, action: 'remove_waypoint', actionArgs: { waypoints: [city] } };
+                }
+            }
+        }
+
+        // Try to remove waypoint by name directly
+        const anyCity = lower.match(/(?:quita(?:r)?|elimina(?:r)?|borra(?:r)?|saca(?:r)?)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
+        if (anyCity) {
+            let cleanWait = cleanCity(anyCity[1]);
+            cleanWait = cleanWait.replace(/^(de\s+la\s+ruta|la\s+ruta)$/i, '').trim();
+            if (cleanWait.length > 2 && cleanWait !== 'la parada' && cleanWait !== 'parada' && cleanWait !== 'ruta') {
+                return { speak: `Parada eliminada.`, action: 'remove_waypoint', actionArgs: { waypoints: [cleanWait] } };
+            }
+        }
         return { speak: `¿Cuál parada quieres eliminar?`, action: 'none', actionArgs: {} };
     }
 
