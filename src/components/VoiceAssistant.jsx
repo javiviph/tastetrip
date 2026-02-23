@@ -159,8 +159,9 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     if (isNewRoute && !waypoints && !askedForWaypointsRef.current) {
                         // Store pending route so fallback & Gemini know where we're going
                         setRouteDetails(prev => ({ ...prev, pendingOrigin: origin, pendingDest: destination }));
-                        window.__lastAssistantQuestion = 'parada ciudad de paso busquemos';
-                        speak('Antes de trazar la ruta, ¿quieres que busquemos restaurantes en el camino o alguna otra ciudad de paso?', true);
+                        const interruptMsg = 'Antes de trazar la ruta, ¿quieres que busquemos restaurantes en el camino o alguna otra ciudad de paso?';
+                        window.__lastAssistantQuestion = interruptMsg;
+                        speak(interruptMsg, true);
                         askedForWaypointsRef.current = true;
                         return;
                     }
@@ -277,13 +278,30 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         // Keep history manageable (last 10 turns)
         if (chatHistoryRef.current.length > 20) chatHistoryRef.current = chatHistoryRef.current.slice(-20);
 
+        // Detect if executeAction will intercept and speak itself (new route without waypoints)
+        // In that case, suppress result.speak to avoid double audio
+        let suppressSpeak = false;
+        if (result.action === 'calculate_route') {
+            const origin = result.actionArgs?.origin || pendingOriginRef.current || routeDetails?.originName;
+            const destination = result.actionArgs?.destination || pendingDestRef.current || routeDetails?.destinationName;
+            const waypoints = result.actionArgs?.waypoints?.length > 0 ? result.actionArgs.waypoints : null;
+            const isNewRoute = !routeDetails?.originName || (origin && origin.toLowerCase() !== routeDetails.originName?.toLowerCase());
+            if (isNewRoute && !waypoints && !askedForWaypointsRef.current) {
+                suppressSpeak = true;
+            }
+        }
+
         // Execute the action (state change, route calc, etc.)
         if (result.action && result.action !== 'none') {
             executeAction(result.action, result.actionArgs || {});
         }
 
-        // Speak Gemini's response
-        await speak(result.speak || null, !isMobile);
+        // Speak the AI's response (unless suppressed because interceptor will speak)
+        if (!suppressSpeak) {
+            // Track what we say so regex fallback can use context
+            if (result.speak) window.__lastAssistantQuestion = result.speak;
+            await speak(result.speak || null, !isMobile);
+        }
     };
 
     // ── Start listening ───────────────────────────────────────────────────────
