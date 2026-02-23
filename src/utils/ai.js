@@ -85,9 +85,19 @@ function regexFallback(transcript, appState) {
     }
 
     // ── Filters ─────────────────────────────────────────────────────────────
-    const filters = { vegano: 'vegan', vegan: 'vegan', vegetariano: 'vegan', wifi: 'wifi', terraza: 'terraza', perro: 'petFriendly', mascota: 'petFriendly', parking: 'parking', cargador: 'evCharger', eléctrico: 'evCharger', abierto: 'openNow' };
-    for (const [kw, key] of Object.entries(filters)) {
-        if (lower.includes(kw)) return { speak: `Listo.`, action: 'set_filter', actionArgs: { key, value: true } };
+    const filterMap = { vegano: 'vegan', vegan: 'vegan', vegetariano: 'vegan', wifi: 'wifi', terraza: 'terraza', perro: 'petFriendly', mascota: 'petFriendly', parking: 'parking', cargador: 'evCharger', eléctrico: 'evCharger', abierto: 'openNow' };
+    const filterLabels = { vegan: 'opción vegana', wifi: 'wifi', terraza: 'terraza', petFriendly: 'pet friendly', parking: 'parking', evCharger: 'cargador eléctrico', openNow: 'abiertos ahora' };
+    for (const [kw, key] of Object.entries(filterMap)) {
+        if (lower.includes(kw)) {
+            const poiList = filteredPois?.length > 0 ? filteredPois : pois;
+            const matching = poiList.filter(p => p.services?.includes(key) || (key === 'vegan' && p.services?.includes('vegan')));
+            const label = filterLabels[key] || key;
+            if (matching.length === 0) {
+                return { speak: `Activado el filtro de ${label}, pero no veo ninguno disponible en tu ruta ahora mismo. ¿Pruebo otro filtro?`, action: 'set_filter', actionArgs: { key, value: true } };
+            }
+            const names = matching.slice(0, 3).map(p => p.name).join(', ');
+            return { speak: `Filtro de ${label} activado. Hay ${matching.length === 1 ? 'uno' : matching.length} en ruta: ${names}. ¿Quieres añadir alguno a tus paradas?`, action: 'set_filter', actionArgs: { key, value: true } };
+        }
     }
 
     // ── Questions about POIs ─────────────────────────────────────────────────
@@ -222,6 +232,7 @@ REGLAS (no negociables):
 9. ¡MUY IMPORTANTE! SÓLO puedes añadir restaurantes (action:"add_poi") si están en la sección "En ruta". Si no está en ruta, di que no está de camino.
 10. Si tras tener la ruta calculada el usuario pide una parada en una ciudad o lugar geográfico (NO restaurante): action:"add_waypoint", waypoints:["Ciudad"].
 11. Si quieren quitar una ciudad de la ruta: action:"remove_waypoint", waypoints:["Ciudad"].
+12. ¡MUY IMPORTANTE sobre FILTROS! Cuando actives o desactives un filtro (set_filter/clear_filter): NO termines la conversación. Di cuántos restaurantes hay con ese servicio y cuáles son los mejores, y termina con una pregunta abierta para seguir (ej: "¿Quieres que te cuente más de alguno o lo añadimos a la ruta?"). Esto es la clave de la experiencia, no dejes la conversación colgada con respuestas de una palabra como "Listo".
 
 FORMATO JSON (todos los campos, siempre):
 {"speak":"texto en voz alta","action":"accion","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
@@ -234,11 +245,12 @@ EJEMPLOS:
 // Ruta pendiente, usuario dice no quiere paradas:
 [ESTADO: "Ruta pendiente de confirmar: Madrid → Andorra"] + "no, directo" → {"speak":"Venga, calculando ruta directa.","action":"calculate_route","origin":"Madrid","destination":"Andorra","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "voy de Bilbao a San Sebastián" → {"speak":"Perfecto. ¿Quieres que añadamos alguna parada o ciudad de paso en el camino?","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"¿hay opción vegana?" → {"speak":"Perfecto, activo el filtro vegano. Hay tres restaurantes con opción vegana en tu ruta: La Huerta Verde, El Jardín Ecológico y Casa Natural. ¿Quieres añadir alguno o te cuento más detalles?","action":"set_filter","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"vegan","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"activa terraza" → {"speak":"Hecho, filtro terraza activado. Hay dos sitios con terraza en ruta: El Figón y Casa Lucio. ¿Añadimos alguno a las paradas?","action":"set_filter","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"terraza","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"añade Casa Lucio" → {"speak":"¡Apuntado! Casa Lucio en tus paradas.","action":"add_poi","origin":"","destination":"","waypoints":[],"poiName":"Casa Lucio","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "añade Zaragoza a la ruta" → {"speak":"Claro, recalculando la ruta pasando por Zaragoza.","action":"add_waypoint","origin":"","destination":"","waypoints":["Zaragoza"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "quita Zaragoza de la ruta" → {"speak":"Zaragoza eliminada de tus paradas.","action":"remove_waypoint","origin":"","destination":"","waypoints":["Zaragoza"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"¿cuándo llego?" → {"speak":"Según la ruta, llegas sobre las diecisiete y media.","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"activa terraza" → {"speak":"Hecho. Con terraza hay dos sitios en ruta: El Figón y Casa Lucio. ¿Te apetece alguno?","action":"set_filter","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"terraza","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"añade Casa Lucio" → {"speak":"¡Apuntado! Casa Lucio en tus paradas.","action":"add_poi","origin":"","destination":"","waypoints":[],"poiName":"Casa Lucio","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}`;
+"¿cuándo llego?" → {"speak":"Según la ruta, llegas sobre las diecisiete y media.","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}`;
 
     const contents = [
         ...history.map(h => ({

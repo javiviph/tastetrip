@@ -159,7 +159,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     if (isNewRoute && !waypoints && !askedForWaypointsRef.current) {
                         // Store pending route so fallback & Gemini know where we're going
                         setRouteDetails(prev => ({ ...prev, pendingOrigin: origin, pendingDest: destination }));
-                        const interruptMsg = 'Antes de trazar la ruta, ¿quieres que busquemos restaurantes en el camino o alguna otra ciudad de paso?';
+                        const interruptMsg = `¿Vamos directos a ${destination} o quieres añadir alguna parada de paso para tenerla en cuenta cuando revisemos restaurantes en ruta?`;
                         window.__lastAssistantQuestion = interruptMsg;
                         speak(interruptMsg, true);
                         askedForWaypointsRef.current = true;
@@ -300,7 +300,9 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         if (!suppressSpeak) {
             // Track what we say so regex fallback can use context
             if (result.speak) window.__lastAssistantQuestion = result.speak;
-            await speak(result.speak || null, !isMobile);
+            // For set_filter: always re-listen after speaking (never hang up)
+            const forceListenAfter = result.action === 'set_filter' || result.action === 'clear_filter';
+            await speak(result.speak || null, forceListenAfter ? true : !isMobile);
         }
     };
 
