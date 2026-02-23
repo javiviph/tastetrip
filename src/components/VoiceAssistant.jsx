@@ -37,7 +37,9 @@ const VoiceAssistant = ({ onSearchRequest }) => {
     const chatHistoryRef = useRef([]); // Full conversation history for Gemini
     const pendingOriginRef = useRef('');
     const pendingDestRef = useRef('');
-    const askedForWaypointsRef = useRef(false);
+    // Track which destination we already asked the user about stops for
+    // (so we don’t ask again if the user repeats the same route)
+    const askedWaypointsForDestRef = useRef('');
 
     // ── Filtered POIs (for context) ──────────────────────────────────────────
     const filteredPois = useMemo(() => {
@@ -76,11 +78,14 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         };
     }, []);
 
-    // ── Auto-summarize when a new route is calculated ─────────────────────────
-    const prevDestRef = useRef(null);
+    // ── Auto-summarize when a new route is calculated ──────────────────────────────
+    const prevRouteKeyRef = useRef('');
     useEffect(() => {
-        if (isOpen && routeDetails?.destinationName && routeDetails.destinationName !== prevDestRef.current && totalRoute && baseRoute) {
-            prevDestRef.current = routeDetails.destinationName;
+        // Build a key from origin+dest+waypoints to detect genuine route changes
+        const wps = (routeDetails?.waypoints || []).map(w => w.name || '').join(',');
+        const key = `${routeDetails?.originName}|${routeDetails?.destinationName}|${wps}`;
+        if (isOpen && totalRoute && baseRoute && key && key !== prevRouteKeyRef.current) {
+            prevRouteKeyRef.current = key;
             const km = (totalRoute.distance / 1000).toFixed(0);
             const h = Math.floor(totalRoute.duration / 3600);
             const m = Math.floor((totalRoute.duration % 3600) / 60);
@@ -89,12 +94,12 @@ const VoiceAssistant = ({ onSearchRequest }) => {
 
             let summary = `Ruta calculada. ${h > 0 ? `${h} hora${h > 1 ? 's' : ''} y ` : ''}${m} minutos, ${km} kilómetros. `;
             summary += count > 0
-                ? `Hay ${count} paradas en tu camino${best ? `, y la mejor valorada es ${best.name}` : ''}.`
+                ? `Hay ${count} paradas en tu camino${best ? `, y la mejor valorada es ${best.name}` : ''}. ¿Quieres que te cuente más o añadimos alguna?`
                 : `No encontré paradas con los filtros actuales.`;
 
-            speak(summary, !isMobile);
+            speak(summary, true);  // always re-listen after summary
         }
-    }, [totalRoute, baseRoute, routeDetails?.destinationName, isOpen]);
+    }, [totalRoute, baseRoute, routeDetails, isOpen]);
 
     // ── Core speak function ───────────────────────────────────────────────────
     const speak = async (text, askAndListen = true) => {
@@ -155,14 +160,19 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 if (args.destination) pendingDestRef.current = args.destination;
 
                 if (origin && destination) {
-                    const isNewRoute = (!routeDetails?.originName || (origin.toLowerCase() !== routeDetails.originName.toLowerCase()));
-                    if (isNewRoute && !waypoints && !askedForWaypointsRef.current) {
-                        // Store pending route so fallback & Gemini know where we're going
+                    // Only intercept if going to a NEW destination we haven't asked about yet
+                    const destKey = destination.toLowerCase().trim();
+                    const alreadyAsked = askedWaypointsForDestRef.current === destKey;
+                    const routeAlreadyExists = routeDetails?.destinationName?.toLowerCase().trim() === destKey;
+                    const shouldIntercept = !routeAlreadyExists && !alreadyAsked && !waypoints;
+
+                    if (shouldIntercept) {
+                        // Store pending so fallback & Gemini know where we're going
                         setRouteDetails(prev => ({ ...prev, pendingOrigin: origin, pendingDest: destination }));
-                        const interruptMsg = `¿Vamos directos a ${destination} o quieres añadir alguna parada de paso para tenerla en cuenta cuando revisemos restaurantes en ruta?`;
+                        askedWaypointsForDestRef.current = destKey;
+                        const interruptMsg = `¿Vamos directos a ${destination} o quieres añadir alguna parada de paso?`;
                         window.__lastAssistantQuestion = interruptMsg;
                         speak(interruptMsg, true);
-                        askedForWaypointsRef.current = true;
                         return;
                     }
 
@@ -171,7 +181,6 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     onSearchRequest(origin, destination, finalWaypoints.length > 0 ? finalWaypoints : null);
                     pendingOriginRef.current = '';
                     pendingDestRef.current = '';
-                    askedForWaypointsRef.current = false;
                     // Clear pending
                     setRouteDetails(prev => ({ ...prev, pendingOrigin: null, pendingDest: null }));
                 }
@@ -278,15 +287,16 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         // Keep history manageable (last 10 turns)
         if (chatHistoryRef.current.length > 20) chatHistoryRef.current = chatHistoryRef.current.slice(-20);
 
-        // Detect if executeAction will intercept and speak itself (new route without waypoints)
-        // In that case, suppress result.speak to avoid double audio
+        // Detect if executeAction will intercept and speak itself
+        // (new destination that hasn't been asked about, without waypoints)
         let suppressSpeak = false;
         if (result.action === 'calculate_route') {
-            const origin = result.actionArgs?.origin || pendingOriginRef.current || routeDetails?.originName;
             const destination = result.actionArgs?.destination || pendingDestRef.current || routeDetails?.destinationName;
             const waypoints = result.actionArgs?.waypoints?.length > 0 ? result.actionArgs.waypoints : null;
-            const isNewRoute = !routeDetails?.originName || (origin && origin.toLowerCase() !== routeDetails.originName?.toLowerCase());
-            if (isNewRoute && !waypoints && !askedForWaypointsRef.current) {
+            const destKey = destination?.toLowerCase().trim() || '';
+            const alreadyAsked = askedWaypointsForDestRef.current === destKey;
+            const routeAlreadyExists = routeDetails?.destinationName?.toLowerCase().trim() === destKey;
+            if (!routeAlreadyExists && !alreadyAsked && !waypoints) {
                 suppressSpeak = true;
             }
         }
@@ -298,11 +308,9 @@ const VoiceAssistant = ({ onSearchRequest }) => {
 
         // Speak the AI's response (unless suppressed because interceptor will speak)
         if (!suppressSpeak) {
-            // Track what we say so regex fallback can use context
             if (result.speak) window.__lastAssistantQuestion = result.speak;
-            // For set_filter: always re-listen after speaking (never hang up)
-            const forceListenAfter = result.action === 'set_filter' || result.action === 'clear_filter';
-            await speak(result.speak || null, forceListenAfter ? true : !isMobile);
+            // Always re-listen after speaking — mobile may require user gesture but we try
+            await speak(result.speak || null, true);
         }
     };
 
@@ -351,12 +359,12 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             chatHistoryRef.current = [];
             pendingOriginRef.current = '';
             pendingDestRef.current = '';
-            askedForWaypointsRef.current = false;
+            askedWaypointsForDestRef.current = '';
             // Pre-request permissions if mobile to avoid initial block if possible
             if (isMobile) {
                 try { navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => { }); } catch (e) { }
             }
-            speak('¡Hola! ¿Desde dónde sales y hacia dónde vas?', !isMobile);
+            speak('¡Hola! ¿Desde dónde sales y hacia dónde vas?', true);
         } else {
             isOpenRef.current = false;
             setIsOpen(false);

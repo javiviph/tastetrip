@@ -42,8 +42,11 @@ function regexFallback(transcript, appState) {
 
     // ── HELPER: extract city from "paro en X", "paso por X", etc. ────────────
     function extractStopCity(text) {
-        // Match: "paro en X", "parar en X", "también paro en X", "quiero parar en X", "me paro en X"
-        const m1 = text.match(/(?:tambi[eé]n\s+)?(?:quiero?\s+)?(?:me\s+)?para?r?\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        // Match: "paro en X", "parar en X", "para en X", "pare en X"
+        // also: "también paro en X", "quiero parar en X", "voy a parar en X", "me paro en X"
+        const m1 = text.match(
+            /(?:tambi[eé]n\s+)?(?:(?:quiero?|voy\s+a)\s+)?(?:me\s+)?par(?:o|ar?|e)\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i
+        );
         if (m1) return cleanCity(m1[1].trim());
         // Match: "paso por X", "pasar por X", "pasando por X"
         const m2 = text.match(/pasan?d?o?\s+por\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
@@ -76,18 +79,20 @@ function regexFallback(transcript, appState) {
         // If it IS a POI, fall through to POI handling below
     }
 
-    // ── PRIORITY 2: Context — answering the waypoint question ─────────────────
-    if (lastQ.includes('parada') || lastQ.includes('directo') || lastQ.includes('ciudad de paso') || lastQ.includes('busquemos') || hasPendingRoute) {
+    // ── PRIORITY 2: Context — answering the waypoint question ───────────────
+    // Only trigger this when we actually have a pending route waiting to be confirmed
+    if (hasPendingRoute || (lastQ.includes('directo') && (lastQ.includes('paso') || lastQ.includes('parada')))) {
         const o = routeDetails?.pendingOrigin || routeDetails?.originName;
         const d = routeDetails?.pendingDest || routeDetails?.destinationName;
-        if (/^(no|nada|directo|directo?s?|sin paradas?|sin ciudades?|adelante|va|venga|dale|ning[uú]na)/.test(lower)) {
+        if (/^(no|nada|directo|directos?|sin paradas?|sin ciudades?|adelante|va|venga|dale|ning[uú]n)/.test(lower)) {
             if (o && d) return { speak: `Calculando ruta directa de ${o} a ${d}.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [] } };
         }
-        // Any city name as answer (e.g. "Zaragoza" / "pues sí Córdoba")
-        if (!/quita|elimina|borra|restaurante|añade|filtro/.test(lower)) {
-            const city = cleanCity(transcript);
-            if (city && city.split(' ').length <= 4 && !/qué|cómo|cuándo|dónde|hay|no/.test(lower)) {
-                if (o && d) return { speak: `Parada en ${city} añadida, ruta recalculando.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [city] } };
+        // City name answer — only if response is short and looks like a city, NOT a full sentence
+        if (!/quita|elimina|borra|restaurante|añade|filtro|qué|cómo|dónde|hay|no\s/.test(lower)) {
+            const cleaned = cleanCity(transcript);
+            // Must be 1-3 words and not contain verbs / sentence structure
+            if (cleaned && cleaned.split(' ').length <= 3 && !/\b(salgo|voy|quiero|paro|quiere|tengo|vamos)\b/.test(lower)) {
+                if (o && d) return { speak: `Parada en ${cleaned} añadida, ruta recalculando.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [cleaned] } };
             }
         }
     }
@@ -263,12 +268,13 @@ REGLAS (no negociables):
 4. Cuando actives un filtro: cuenta cuántos restaurantes del catálogo tienen ese servicio y nombra los mejores.
 5. Para hablar de duración/llegada: usa los datos de ESTADO DEL VIAJE.
 6. Sé breve y conversacional. Máximo 2-3 frases.
-7. ¡IMPORTANTE SOBRE RUTAS! Cuando el usuario mencione por primera vez origen y destino sin especificar paradas, responde con action:"none" preguntando si quiere paradas, NO calcules la ruta todavía.
+7. ¡IMPORTANTE SOBRE RUTAS! Cuando el usuario mencione origen y destino POR PRIMERA VEZ (estado: "Sin ruta planificada") sin especificar paradas, responde con action:"none" preguntando si quiere paradas. Si ya existe una ruta calculada en el estado y el usuario menciona el mismo destino, NO preguntes otra vez — simplemente confirma o recalcula.
 8. Si ves en ESTADO DEL VIAJE "Ruta pendiente de confirmar: X → Y", significa que ya preguntaste sobre paradas y el usuario está respondiendo ahora. Tú debes: a) Si dicen "no/directo/sin paradas": action:"calculate_route" con origin=X, destination=Y, waypoints:[]. b) Si mencionan una ciudad (ej: "Tarragona", "me gustaría pasar por Tarragona"): action:"calculate_route" con origin=X, destination=Y, waypoints:["Tarragona"]. c) Si quieren varias paradas: inclúyelas todas en waypoints:.
 9. ¡MUY IMPORTANTE! SÓLO puedes añadir restaurantes (action:"add_poi") si están en la sección "En ruta". Si no está en ruta, di que no está de camino.
 10. Si tras tener la ruta calculada el usuario pide una parada en una ciudad o lugar geográfico (NO restaurante): action:"add_waypoint", waypoints:["Ciudad"].
 11. Si quieren quitar una ciudad de la ruta: action:"remove_waypoint", waypoints:["Ciudad"].
-12. ¡MUY IMPORTANTE sobre FILTROS! Cuando actives o desactives un filtro (set_filter/clear_filter): NO termines la conversación. Di cuántos restaurantes hay con ese servicio y cuáles son los mejores, y termina con una pregunta abierta para seguir (ej: "¿Quieres que te cuente más de alguno o lo añadimos a la ruta?"). Esto es la clave de la experiencia, no dejes la conversación colgada con respuestas de una palabra como "Listo".
+12. ¡MUY IMPORTANTE sobre FILTROS! Cuando actives o desactives un filtro (set_filter/clear_filter): NO termines la conversación. Di cuántos restaurantes hay con ese servicio y cuáles son los mejores, y termina con una pregunta abierta para seguir. No respondas con "Listo" sin más.
+13. Si el usuario vuelve a decir la misma ruta que ya está calculada (ej: ruta ya existe Cádiz→Barcelona y dice "voy de Cádiz a Barcelona"), simplemente confirma la ruta existente con action:"none".
 
 FORMATO JSON (todos los campos, siempre):
 {"speak":"texto en voz alta","action":"accion","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
