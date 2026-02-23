@@ -43,6 +43,21 @@ const createPoiIcon = (poi, isHovered, isSelected) => {
     });
 };
 
+const createWaypointIcon = (type, index = null) => {
+    let color = type === 'origin' ? '#3b82f6' : (type === 'destination' ? '#10b981' : '#f59e0b');
+    let label = type === 'origin' ? 'A' : (type === 'destination' ? 'B' : String(index + 1));
+    return L.divIcon({
+        className: 'custom-waypoint-marker',
+        html: `
+            <div style="background-color: ${color}; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-size: 14px;">
+                ${label}
+            </div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+    });
+};
+
 const RoutingMachine = ({ origin, destination, intermediateWaypoints = [], points = [] }) => {
     const map = useMap();
     const routingControlRef = useRef(null);
@@ -191,12 +206,19 @@ const MapView = () => {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 />
                 {routeDetails.origin && routeDetails.destination && (
-                    <RoutingMachine
-                        origin={routeDetails.origin}
-                        destination={routeDetails.destination}
-                        intermediateWaypoints={routeDetails.waypoints || []}
-                        points={addedRoutePoints}
-                    />
+                    <>
+                        <RoutingMachine
+                            origin={routeDetails.origin}
+                            destination={routeDetails.destination}
+                            intermediateWaypoints={routeDetails.waypoints || []}
+                            points={addedRoutePoints}
+                        />
+                        <Marker position={[routeDetails.origin.lat, routeDetails.origin.lng]} icon={createWaypointIcon('origin')} />
+                        {(routeDetails.waypoints || []).map((wp, i) => (
+                            <Marker key={`wp-${i}`} position={[wp.lat, wp.lng]} icon={createWaypointIcon('waypoint', i)} />
+                        ))}
+                        <Marker position={[routeDetails.destination.lat, routeDetails.destination.lng]} icon={createWaypointIcon('destination')} />
+                    </>
                 )}
                 {visiblePois.map(poi => (
                     <Marker

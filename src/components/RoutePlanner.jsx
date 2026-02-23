@@ -72,6 +72,27 @@ const RoutePlanner = () => {
         return { ...poi, arrivalTime: expectedArrival, isOpen };
     });
 
+    const citiesWithTimes = (routeDetails.waypoints || []).map((wp, index) => {
+        let expectedArrival = departureTime;
+        if (totalRoute && routeDetails.origin && routeDetails.destination) {
+            const getHaversineDistanceInline = (c1, c2) => {
+                const R = 6371e3;
+                const lat1 = c1[0] * Math.PI / 180;
+                const lat2 = c2[0] * Math.PI / 180;
+                const deltaLat = (c2[0] - c1[0]) * Math.PI / 180;
+                const deltaLon = (c2[1] - c1[1]) * Math.PI / 180;
+                const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            };
+            const distOriginToPoi = getHaversineDistanceInline([routeDetails.origin.lat, routeDetails.origin.lng], [wp.lat, wp.lng]);
+            const distOriginToDest = getHaversineDistanceInline([routeDetails.origin.lat, routeDetails.origin.lng], [routeDetails.destination.lat, routeDetails.destination.lng]);
+            const ratio = Math.min(1, distOriginToPoi / (distOriginToDest || 1));
+            const estimatedTravelSeconds = Math.floor(totalRoute.duration * ratio);
+            expectedArrival = addTimeToTime(departureTime, estimatedTravelSeconds);
+        }
+        return { ...wp, arrivalTime: expectedArrival };
+    });
+
     const totalDelaySeconds = addedRoutePoints.length * STAY_TIME;
     const finalArrivalTime = totalRoute
         ? addTimeToTime(departureTime, totalRoute.duration + totalDelaySeconds)
@@ -160,6 +181,33 @@ const RoutePlanner = () => {
                         <div style={{ fontSize: '14px', fontWeight: '600' }}>{routeDetails.originName || 'Inicio'}</div>
                     </div>
                 </div>
+
+                {/* City Waypoints */}
+                {citiesWithTimes.map((city, idx) => (
+                    <div
+                        key={`city-${idx}`}
+                        style={{ display: 'flex', gap: '16px', position: 'relative' }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '24px' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#f59e0b', zIndex: 2 }} />
+                            <div style={{ width: '2px', flex: 1, backgroundColor: 'var(--border)', zIndex: 1 }} />
+                        </div>
+
+                        <div style={{ paddingBottom: '20px', flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{
+                                    flex: 1, padding: '12px', backgroundColor: 'var(--bg-offset)',
+                                    borderRadius: '12px', border: '1px solid var(--border)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '700' }}>PASO • {formatDisplayDatetime(city.arrivalTime)}</div>
+                                    </div>
+                                    <div style={{ fontSize: '14px', fontWeight: '700' }}>{city.name}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
 
                 {/* Added Stops */}
                 {stopsWithTimes.map((poi) => (

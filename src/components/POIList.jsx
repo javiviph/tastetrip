@@ -327,7 +327,25 @@ const POIList = () => {
                     displayPois.map(poi => {
                         const detour = detourData[poi.id];
                         const distFromRoute = poiDistances[poi.id];
-                        const isOpen = isPoiOpenAt(poi, departureTime);
+
+                        let estimatedTime = departureTime;
+                        if (hasRoute && routeDetails.origin && routeDetails.destination && totalRoute) {
+                            const getHaversineDistanceInline = (c1, c2) => {
+                                const R = 6371e3;
+                                const lat1 = c1[0] * Math.PI / 180;
+                                const lat2 = c2[0] * Math.PI / 180;
+                                const deltaLat = (c2[0] - c1[0]) * Math.PI / 180;
+                                const deltaLon = (c2[1] - c1[1]) * Math.PI / 180;
+                                const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+                                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                            };
+                            const distOriginToPoi = getHaversineDistanceInline([routeDetails.origin.lat, routeDetails.origin.lng], poi.coords);
+                            const distOriginToDest = getHaversineDistanceInline([routeDetails.origin.lat, routeDetails.origin.lng], [routeDetails.destination.lat, routeDetails.destination.lng]);
+                            const ratio = Math.min(1, distOriginToPoi / (distOriginToDest || 1));
+                            const estimatedTravelSeconds = Math.floor(totalRoute.duration * ratio);
+                            estimatedTime = addTimeToTime(departureTime, estimatedTravelSeconds);
+                        }
+                        const isOpen = isPoiOpenAt(poi, estimatedTime);
                         return (
                             <div
                                 key={poi.id} className="card" onClick={() => setSelectedPoi(poi)}
