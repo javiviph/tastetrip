@@ -137,7 +137,10 @@ function buildContext(appState) {
             times = ` | Salida: ${fmt(dep)} | Llegada estimada: ${fmt(arr)}`;
         }
 
-        routeBlock = `${routeDetails.originName} → ${routeDetails.destinationName} | ${km} km | ${dur}${times}`;
+        let wps = routeDetails?.waypoints && routeDetails.waypoints.length > 0
+            ? ` → ${routeDetails.waypoints.map(w => w.name || 'Parada').join(' → ')}`
+            : '';
+        routeBlock = `${routeDetails.originName}${wps} → ${routeDetails.destinationName} | ${km} km | ${dur}${times}`;
     }
 
     const stopsBlock = addedRoutePoints.length > 0
@@ -189,17 +192,20 @@ REGLAS (no negociables):
 
 8. ¡IMPORTANTE SOBRE RUTAS! Si el usuario te pide una ruta (ej: "voy de Madrid a Barcelona") POR PRIMERA VEZ y no especifica paradas intermedias, DEBES responderle preguntando si quiere añadir alguna parada (ej: "¿Quieres que busquemos restaurantes antes de trazar la ruta o añadir alguna otra ciudad de paso?") y devuelve action:"none".
 9. Si el usuario te dice que no quiere paradas extra, o si te da las paradas en ese momento (ej: "sí, quiero parar en Zaragoza"), ENTONCES responde con action:"calculate_route" y si te dio paradas, mételas en el array "waypoints" : ["Zaragoza"].
+10. ¡MUY IMPORTANTE! SÓLO puedes añadir restaurantes a tu ruta (action: "add_poi") si están presentes ESPECÍFICAMENTE en la sección "En ruta" (abiertos y en el camino). Si un usuario te pide añadir un restaurante del "CATÁLOGO COMPLETO" que NO aparece "En ruta" dile amablemente que nos pilla a desmano.
+11. Si tras tener la ruta trazada el usuario quiere hacer una parada extra en una ciudad, pueblo, o lugar geográfico general (NO un restaurante), usa la acción "add_waypoint" y pon la ciudad en la propiedad "waypoints". Ejemplo: "vamos a hacer una parada en Logroño" → action: "add_waypoint", waypoints: ["Logroño"].
 
 FORMATO JSON (todos los campos, siempre):
 {"speak":"texto en voz alta","action":"accion","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 
-ACCIONES: calculate_route | add_poi | remove_poi | set_filter | clear_filter | set_departure_time | none
+ACCIONES: calculate_route | add_poi | remove_poi | add_waypoint | set_filter | clear_filter | set_departure_time | none
 
 EJEMPLOS:
 "voy de Bilbao a San Sebastián" → {"speak":"Perfecto. Antes de trazar la ruta, ¿quieres que añadamos alguna parada intermedia o restaurante en el camino?","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "no, directo" → {"speak":"Venga, calculando ahora mismo ruta directa.","action":"calculate_route","origin":"Bilbao","destination":"San Sebastián","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "sí, pasemos por Pamplona" → {"speak":"Hecho, ruta pasando por Pamplona en curso.","action":"calculate_route","origin":"Bilbao","destination":"San Sebastián","waypoints":["Pamplona"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "salgo desde Madrid hacia Sevilla y quiero parar en Córdoba" → {"speak":"Genial, incluyo Córdoba en tus paradas en camino a Sevilla.","action":"calculate_route","origin":"Madrid","destination":"Sevilla","waypoints":["Córdoba"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"añade Zaragoza a la ruta" → {"speak":"Claro, recalculando la ruta pasando por Zaragoza.","action":"add_waypoint","origin":"","destination":"","waypoints":["Zaragoza"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "¿cuándo llego?" → {"speak":"Según la ruta, llegas sobre las diecisiete y media.","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "activa terraza" → {"speak":"Hecho. Con terraza hay dos sitios en ruta: El Figón y Casa Lucio. ¿Te apetece alguno?","action":"set_filter","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"terraza","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "añade Casa Lucio" → {"speak":"¡Apuntado! Casa Lucio en tus paradas.","action":"add_poi","origin":"","destination":"","waypoints":[],"poiName":"Casa Lucio","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}`;
@@ -268,15 +274,21 @@ EJEMPLOS:
         // Resolve POI name → actual POI object
         if ((result.action === 'add_poi' || result.action === 'remove_poi') && result.actionArgs.poiName) {
             const q = result.actionArgs.poiName.toLowerCase();
-            const matched = pois.find(poi =>
+            // Validate ONLY against filteredPois if adding, else from full list to remove
+            const listToSearch = result.action === 'add_poi' ? (appState.filteredPois || appState.pois) : appState.pois;
+            const matched = listToSearch.find(poi =>
                 poi.name.toLowerCase().includes(q) ||
                 q.includes(poi.name.toLowerCase().split(' ')[0])
             );
             if (matched) {
                 result.actionArgs.poi = matched;
             } else {
-                console.warn('[AI] POI not found:', result.actionArgs.poiName);
-                result.speak = `No encontré ese restaurante en la lista. ¿Puedes repetir el nombre?`;
+                console.warn('[AI] POI not found in valid list:', result.actionArgs.poiName);
+                if (result.action === 'add_poi') {
+                    result.speak = `Ese lugar no me aparece en los restaurantes recomendados y abiertos de la ruta actual. Trata de buscar otro de los que te he propuesto.`;
+                } else {
+                    result.speak = `No encontré ese restaurante para quitarlo.`;
+                }
                 result.action = 'none';
             }
         }

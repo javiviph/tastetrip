@@ -146,16 +146,36 @@ const VoiceAssistant = ({ onSearchRequest }) => {
 
         switch (action) {
             case 'calculate_route': {
-                const origin = args.origin || pendingOriginRef.current;
-                const destination = args.destination || pendingDestRef.current;
+                const origin = args.origin || pendingOriginRef.current || routeDetails?.originName;
+                const destination = args.destination || pendingDestRef.current || routeDetails?.destinationName;
                 const waypoints = args.waypoints && args.waypoints.length > 0 ? args.waypoints : null;
-                if (origin) pendingOriginRef.current = origin;
-                if (destination) pendingDestRef.current = destination;
-                if (pendingOriginRef.current && pendingDestRef.current) {
-                    console.log('[VA] Calling onSearchRequest:', pendingOriginRef.current, '→', pendingDestRef.current, 'via', waypoints);
-                    onSearchRequest(pendingOriginRef.current, pendingDestRef.current, waypoints);
+                if (args.origin) pendingOriginRef.current = args.origin;
+                if (args.destination) pendingDestRef.current = args.destination;
+
+                if (origin && destination) {
+                    console.log('[VA] Calling onSearchRequest:', origin, '→', destination, 'via', waypoints);
+                    // Pass existing waypoints from routeDetails if we are not wiping them explicitly?
+                    // Generally VoiceAssistant re-sends the whole route or we just merge them.
+                    // For now, if we have waypoints, we pass them. If null, we might wipe them unless we preserve them.
+                    // Actually, if args.waypoints is passed, we USE it. But if the user just says "cambia el destino", we need to preserve existing waypoints!
+                    // Let's pass the union or the current ones if args.waypoints is null.
+                    const finalWaypoints = waypoints || routeDetails?.waypoints?.map(w => w.name || 'Parada') || [];
+                    onSearchRequest(origin, destination, finalWaypoints.length > 0 ? finalWaypoints : null);
                     pendingOriginRef.current = '';
                     pendingDestRef.current = '';
+                }
+                break;
+            }
+            case 'add_waypoint': {
+                const newWaypoints = args.waypoints && args.waypoints.length > 0 ? args.waypoints : null;
+                const origin = routeDetails?.originName || pendingOriginRef.current;
+                const destination = routeDetails?.destinationName || pendingDestRef.current;
+
+                if (origin && destination && newWaypoints) {
+                    const currentWaypoints = routeDetails?.waypoints?.map(w => w.name || 'Parada') || [];
+                    const finalWaypoints = [...currentWaypoints, ...newWaypoints];
+                    console.log('[VA] Calling onSearchRequest to add waypoint:', origin, '→', destination, 'via', finalWaypoints);
+                    onSearchRequest(origin, destination, finalWaypoints);
                 }
                 break;
             }
