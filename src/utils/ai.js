@@ -283,7 +283,7 @@ REGLAS (no negociables):
 1. Responde ÚNICAMENTE con JSON válido. Ningún texto fuera del JSON.
 2. Escribe números y horas SIEMPRE en palabras: "13:00"→"las trece", "2h 30min"→"dos horas y media", "4.8"→"cuatro coma ocho", "350 km"→"trescientos cincuenta kilómetros".
 3. origin y destination: SOLO el nombre de la ciudad, SIN preposiciones ni conectores. "Madrid" ✓. "desde Madrid" ✗. "Madrid y voy a" ✗.
-4. Cuando actives un filtro: cuenta cuántos restaurantes del catálogo tienen ese servicio y nombra los mejores.
+4. Cuando actives un filtro o te pregunten por opciones: fíjate SIEMPRE en la sección "En ruta" de ESTADO DEL VIAJE, NUNCA en el CATÁLOGO COMPLETO. Si "En ruta" dice "Ningún restaurante visible", entonces NO hay opciones.
 5. Para hablar de duración/llegada: usa los datos de ESTADO DEL VIAJE.
 6. Sé breve y conversacional. Máximo 2-3 frases.
 7. ¡IMPORTANTE SOBRE RUTAS! Cuando el usuario mencione origen y destino POR PRIMERA VEZ (estado: "Sin ruta planificada") sin especificar paradas, responde con action:"none" preguntando si quiere paradas. Si ya existe una ruta calculada en el estado y el usuario menciona el mismo destino, NO preguntes otra vez — simplemente confirma o recalcula.
@@ -291,7 +291,7 @@ REGLAS (no negociables):
 9. ¡MUY IMPORTANTE! SÓLO puedes añadir restaurantes (action:"add_poi") si están en la sección "En ruta". Si no está en ruta, di que no está de camino.
 10. Si tras tener la ruta calculada el usuario pide una parada en una ciudad o lugar geográfico (NO restaurante): action:"add_waypoint", waypoints:["Ciudad"].
 11. Si quieren quitar una ciudad de la ruta: action:"remove_waypoint", waypoints:["Ciudad"].
-12. ¡MUY IMPORTANTE sobre FILTROS! Cuando actives o desactives un filtro (set_filter/clear_filter): NO termines la conversación. Di cuántos restaurantes hay con ese servicio y cuáles son los mejores, y termina con una pregunta abierta para seguir. No respondas con "Listo" sin más.
+12. ¡MUY IMPORTANTE sobre FILTROS! Cuando actives un filtro (set_filter): NO termines la conversación. Fíjate en "En ruta" y di cuántos restaurantes visibles hay y cita los mejores. Si no hay restaurantes en ruta, dilo claramente. Termina con una pregunta abierta. No respondas con "Listo" sin más.
 13. Si el usuario vuelve a decir la misma ruta que ya está calculada (ej: ruta ya existe Cádiz→Barcelona y dice "voy de Cádiz a Barcelona"), simplemente confirma la ruta existente con action:"none".
 
 FORMATO JSON (todos los campos, siempre):
