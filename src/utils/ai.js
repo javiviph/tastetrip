@@ -33,64 +33,99 @@ function regexFallback(transcript, appState) {
     const { routeDetails, addedRoutePoints, pois, filteredPois } = appState;
     const hasOrigin = !!(routeDetails?.originName);
     const hasDest = !!(routeDetails?.destinationName);
+    const hasRoute = !!(routeDetails?.originName && routeDetails?.destinationName);
     const hasPendingRoute = !!(routeDetails?.pendingOrigin && routeDetails?.pendingDest);
     const lastQ = (window.__lastAssistantQuestion || '').toLowerCase();
+    const poiList = filteredPois?.length > 0 ? filteredPois : pois;
 
     console.log('[REGEX] transcript:', transcript, '| lastQ:', lastQ);
 
-    // ── Context: responding to the waypoint question ────────────────────────
-    if (lastQ.includes('parada') || lastQ.includes('ciudad de paso') || lastQ.includes('busquemos') || hasPendingRoute) {
+    // ── HELPER: extract city from "paro en X", "paso por X", etc. ────────────
+    function extractStopCity(text) {
+        // Match: "paro en X", "parar en X", "también paro en X", "quiero parar en X", "me paro en X"
+        const m1 = text.match(/(?:tambi[eé]n\s+)?(?:quiero?\s+)?(?:me\s+)?para?r?\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        if (m1) return cleanCity(m1[1].trim());
+        // Match: "paso por X", "pasar por X", "pasando por X"
+        const m2 = text.match(/pasan?d?o?\s+por\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        if (m2) return cleanCity(m2[1].trim());
+        // Match: "parada en X", "hacer parada en X", "una parada en X"
+        const m3 = text.match(/(?:hacer\s+)?(?:una\s+)?parada\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        if (m3) return cleanCity(m3[1].trim());
+        return null;
+    }
+
+    // ── PRIORITY 1: city-stop phrases (paro en X, paso por X, parada en X) ──
+    const stopCity = extractStopCity(lower);
+    if (stopCity) {
+        // Is this city also a known restaurant name? (unlikely but safe)
+        const isPoi = poiList.some(p =>
+            p.name.toLowerCase().split(/[\s,]+/).some(w => w.length > 3 && stopCity.toLowerCase().includes(w))
+        );
+        if (!isPoi) {
+            // It's a geographic stop
+            const origin = routeDetails?.pendingOrigin || routeDetails?.originName;
+            const dest = routeDetails?.pendingDest || routeDetails?.destinationName;
+            if (hasPendingRoute || (origin && dest && !hasRoute)) {
+                // Still planning — include as waypoint in calculate_route
+                return { speak: `Ruta vía ${stopCity} calculando.`, action: 'calculate_route', actionArgs: { origin, destination: dest, waypoints: [stopCity] } };
+            } else if (hasRoute) {
+                // Route already active — add as waypoint
+                return { speak: `Parada en ${stopCity} añadida.`, action: 'add_waypoint', actionArgs: { waypoints: [stopCity] } };
+            }
+        }
+        // If it IS a POI, fall through to POI handling below
+    }
+
+    // ── PRIORITY 2: Context — answering the waypoint question ─────────────────
+    if (lastQ.includes('parada') || lastQ.includes('directo') || lastQ.includes('ciudad de paso') || lastQ.includes('busquemos') || hasPendingRoute) {
         const o = routeDetails?.pendingOrigin || routeDetails?.originName;
         const d = routeDetails?.pendingDest || routeDetails?.destinationName;
-        if (/^(no|nada|directo|sin paradas?|sin ciudades?|adelante|va|venga|dale)/.test(lower)) {
+        if (/^(no|nada|directo|directo?s?|sin paradas?|sin ciudades?|adelante|va|venga|dale|ning[uú]na)/.test(lower)) {
             if (o && d) return { speak: `Calculando ruta directa de ${o} a ${d}.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [] } };
         }
-        // "me gustaría pasar por X" / "Tarragona" / any city name as answer
-        const wpMatch = lower.match(/(?:pasar? por|paso por|parada en|pasando por|pasar.*ciudad|me gustar[íi]a pasar)\s+([a-z\sáéíóúñ]{2,25})/i);
-        const bareCity = wpMatch ? cleanCity(wpMatch[1]) : cleanCity(transcript);
-        if (bareCity && bareCity.split(' ').length <= 4 && !/qué|cómo|cuándo|dónde|hay|añadir|quitar/.test(lower)) {
-            if (o && d) return { speak: `Ruta vía ${bareCity} en camino a ${d}.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [bareCity] } };
+        // Any city name as answer (e.g. "Zaragoza" / "pues sí Córdoba")
+        if (!/quita|elimina|borra|restaurante|añade|filtro/.test(lower)) {
+            const city = cleanCity(transcript);
+            if (city && city.split(' ').length <= 4 && !/qué|cómo|cuándo|dónde|hay|no/.test(lower)) {
+                if (o && d) return { speak: `Parada en ${city} añadida, ruta recalculando.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [city] } };
+            }
         }
     }
 
-    // ── POI add — match by name word OR near location ───────────────────────
-    if (/añade|añadir|incluye|agrega|pon|apunta|añade (?:el|la)|quiero (?:ese|aquel|este)|me gustar[íi]a (?:parar|ir)|para(?:r)? (?:a comer|en)|ese restaurante|apúnt/.test(lower)) {
-        const poiList = filteredPois?.length > 0 ? filteredPois : pois;
-        // Match by name word (any length)
-        let m = poiList.find(p => p.name.toLowerCase().split(/[\s,]+/).some(w => w.length > 2 && lower.includes(w)));
-        // Match by city/address keyword
-        if (!m) m = poiList.find(p => (p.address || '').toLowerCase().split(/[\s,]+/).some(w => w.length > 3 && lower.includes(w)));
-        if (m) return { speak: `Apuntado. ${m.name} en tus paradas.`, action: 'add_poi', actionArgs: { poi: m } };
-        return { speak: `No encuentro ese restaurante entre los recomendados en tu ruta. ¿Me dices el nombre exacto?`, action: 'none', actionArgs: {} };
-    }
-
-    // ── Waypoint city add ───────────────────────────────────────────────────
-    if (/pasar por|paso por|hacer una parada en|parada en|quiero pasar|pasando por|añadir.*ciudad|quiero ir tambi[ée]n por|añade.*ciudad/.test(lower)) {
-        const wpMatch = lower.match(/(?:pasar por|paso por|parada en|hacer parada|pasando por)\s+([a-z\sáéíóúñ]{2,25})/i);
-        const city = wpMatch ? cleanCity(wpMatch[1]) : null;
-        if (city) return { speak: `Perfecto, añado parada en ${city}.`, action: 'add_waypoint', actionArgs: { waypoints: [city] } };
-        return { speak: `¿En qué ciudad quieres hacer parada?`, action: 'none', actionArgs: {} };
-    }
-
-    // ── POI remove / waypoint remove ────────────────────────────────────────
+    // ── PRIORITY 3: Remove ─────────────────────────────────────────────────────
     if (/quita|elimina|borra|saca/.test(lower)) {
-        if (/parada|ciudad|paso|ruta/.test(lower)) {
-            const cityMatch = lower.match(/(?:quita|elimina|saca).*?([a-záéíóúñ]{3,25})/i);
+        // Removing a city waypoint
+        if (/parada|ciudad|paso|ruta|escala/.test(lower) || !addedRoutePoints.length) {
+            const cityMatch = lower.match(/(?:quita|elimina|borra|saca)(?:\s+(?:la\s+)?parada)?(?:\s+de)?\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
             const city = cityMatch ? cleanCity(cityMatch[1]) : null;
             if (city) return { speak: `${city} quitada de la ruta.`, action: 'remove_waypoint', actionArgs: { waypoints: [city] } };
         }
+        // Removing a restaurant
         const m = addedRoutePoints.find(p => p.name.toLowerCase().split(/[\s,]+/).some(w => w.length > 2 && lower.includes(w)));
         if (m) return { speak: `Quitado ${m.name}.`, action: 'remove_poi', actionArgs: { poi: m } };
+        // Try to remove waypoint by name
+        const anyCity = lower.match(/(?:quita|elimina|borra|saca)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
+        if (anyCity) return { speak: `Parada eliminada.`, action: 'remove_waypoint', actionArgs: { waypoints: [cleanCity(anyCity[1])] } };
         return { speak: `¿Cuál parada quieres eliminar?`, action: 'none', actionArgs: {} };
     }
 
-    // ── Filters ─────────────────────────────────────────────────────────────
+    // ── PRIORITY 4: POI add (restaurant) ────────────────────────────────────
+    // Only triggers for explicit restaurant-add vocabulary, NOT city-stop phrases
+    if (/\b(añade|añadir|incluye|agrega|pon|apunta|apúntalo)\b/.test(lower) ||
+        /\b(quiero\s+(ese|este|aquel)|ese\s+restaurante|la\s+primera\s+opción|el\s+primero)\b/.test(lower) ||
+        /\b(me\s+gusta(?:ría)?\s+(ese|este|ir\s+a))\b/.test(lower)) {
+        let m = poiList.find(p => p.name.toLowerCase().split(/[\s,]+/).some(w => w.length > 2 && lower.includes(w)));
+        if (!m) m = poiList.find(p => (p.address || '').toLowerCase().split(/[\s,]+/).some(w => w.length > 3 && lower.includes(w)));
+        if (m) return { speak: `Apuntado. ${m.name} en tus paradas.`, action: 'add_poi', actionArgs: { poi: m } };
+        return { speak: `No encuentro ese restaurante entre los recomendados en tu ruta. ¿Me dices el nombre?`, action: 'none', actionArgs: {} };
+    }
+
+    // ── PRIORITY 5: Filters ───────────────────────────────────────────────────
     const filterMap = { vegano: 'vegan', vegan: 'vegan', vegetariano: 'vegan', wifi: 'wifi', terraza: 'terraza', perro: 'petFriendly', mascota: 'petFriendly', parking: 'parking', cargador: 'evCharger', eléctrico: 'evCharger', abierto: 'openNow' };
     const filterLabels = { vegan: 'opción vegana', wifi: 'wifi', terraza: 'terraza', petFriendly: 'pet friendly', parking: 'parking', evCharger: 'cargador eléctrico', openNow: 'abiertos ahora' };
     for (const [kw, key] of Object.entries(filterMap)) {
         if (lower.includes(kw)) {
-            const poiList = filteredPois?.length > 0 ? filteredPois : pois;
-            const matching = poiList.filter(p => p.services?.includes(key) || (key === 'vegan' && p.services?.includes('vegan')));
+            const matching = poiList.filter(p => p.services?.includes(key));
             const label = filterLabels[key] || key;
             if (matching.length === 0) {
                 return { speak: `Activado el filtro de ${label}, pero no veo ninguno disponible en tu ruta ahora mismo. ¿Pruebo otro filtro?`, action: 'set_filter', actionArgs: { key, value: true } };
@@ -100,30 +135,29 @@ function regexFallback(transcript, appState) {
         }
     }
 
-    // ── Questions about POIs ─────────────────────────────────────────────────
-    if (/qué (otras |más )?(paradas|opciones|restaurantes|sitios|lugares) hay|cuánto.? (restaurantes|sitios|opciones|paradas)|qué (restaurantes|sitios) (me recomiendas|hay|tienes|ves)|qué hay (para comer|en)|opciones (hay|tienes)/.test(lower)) {
+    // ── PRIORITY 6: Questions about POIs ─────────────────────────────────────
+    if (/qué (otras |más )?(paradas|opciones|restaurantes|sitios|lugares) hay|cuánto.? (restaurantes|sitios|opciones)|qué (restaurantes|sitios) (me recomiendas|hay|tienes)|qué hay (para comer|en ruta)|opciones (hay|tienes)/.test(lower)) {
         const list = appState.filteredPois?.length > 0 ? appState.filteredPois : pois;
         if (list.length === 0) return { speak: `No hay restaurantes en ruta con los filtros actuales.`, action: 'none', actionArgs: {} };
         const top = list.slice(0, 3).map(p => p.name).join(', ');
-        return { speak: `Tienes ${list.length} opciones. Los mejores: ${top}.`, action: 'none', actionArgs: {} };
+        return { speak: `Tienes ${list.length} opciones. Los mejores: ${top}. ¿Te apetece alguno?`, action: 'none', actionArgs: {} };
     }
 
-    // ── Route detection ──────────────────────────────────────────────────────
+    // ── PRIORITY 7: Route detection ───────────────────────────────────────────
     const preClean = lower
         .replace(/^(quiero ir|me gustar[íi]a ir|voy a ir|me apetece ir|necesito ir)\s+/i, '')
         .replace(/^(salgo|vengo|voy|parto|me dirijo|estoy yendo|viajar)\s+/i, '');
 
-    const routeRx = /(?:de|desde)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,20}?)\s+(?:a|hacia|hasta|para)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,20}?)[\.,]?\s*$/i;
+    const routeRx = /(?:de|desde)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,20}?)\s+(?:a|hacia|hasta|para)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,20}?)[.,]?\s*$/i;
     const rm = preClean.match(routeRx);
     if (rm) {
         const o = rm[1].trim(), d = rm[2].trim();
         console.log('[REGEX] Route detected:', o, '→', d);
-        // Return empty speak so VoiceAssistant interceptor handles speech
         return { speak: ``, action: 'calculate_route', actionArgs: { origin: o, destination: d } };
     }
 
-    // ── Context: answering the origin/destination questions ──────────────────
-    if (lastQ.includes('desde') || lastQ.includes('sales') || lastQ.includes('sales') || lastQ.includes('origen') || lastQ.includes('dónde sales')) {
+    // ── PRIORITY 8: Context — origin/destination questions ───────────────────
+    if (lastQ.includes('desde') || lastQ.includes('sales') || lastQ.includes('origen') || lastQ.includes('dónde sales')) {
         const city = cleanCity(transcript);
         if (city && city.split(' ').length <= 4) {
             if (!hasDest) return { speak: `¿Y hacia dónde vas?`, action: 'set_origin', actionArgs: { origin: city } };
@@ -138,18 +172,20 @@ function regexFallback(transcript, appState) {
         }
     }
 
-    // ── Bare city name (1-3 words) ───────────────────────────────────────────
+    // ── PRIORITY 9: Bare city name ────────────────────────────────────────────
     if (words.length <= 3 && !/[¿?]/.test(transcript) && !/qué|cómo|cuándo|dónde|hay/.test(lower)) {
         const city = cleanCity(transcript);
-        if (city) {
+        if (city && city.length > 2) {
             if (!hasOrigin) return { speak: `¿Y hacia dónde vas?`, action: 'set_origin', actionArgs: { origin: city } };
             if (!hasDest) return { speak: ``, action: 'calculate_route', actionArgs: { origin: routeDetails.originName, destination: city } };
+            if (hasRoute) return { speak: `Parada en ${city} añadida.`, action: 'add_waypoint', actionArgs: { waypoints: [city] } };
         }
     }
 
     console.log('[REGEX] No match found');
     return { speak: `No te he entendido bien. ¿Puedes repetirlo?`, action: 'none', actionArgs: {} };
 }
+
 
 
 // ─── Build rich itinerary context for Gemini ─────────────────────────────────
