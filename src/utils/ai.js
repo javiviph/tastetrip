@@ -212,17 +212,35 @@ EJEMPLOS:
         { role: 'user', parts: [{ text: transcript }] }
     ];
 
-    try {
-        const res = await gemini.models.generateContent({
-            model: 'gemini-2.5-flash-lite',
-            contents,
-            config: {
-                systemInstruction: systemPrompt,
-                responseMimeType: 'application/json',
-                temperature: 0.3
-            }
-        });
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash'];
+    let res = null;
+    let lastError = null;
 
+    for (const modelName of modelsToTry) {
+        try {
+            console.log(`[AI] Intentando usar modelo: ${modelName}`);
+            res = await gemini.models.generateContent({
+                model: modelName,
+                contents,
+                config: {
+                    systemInstruction: systemPrompt,
+                    responseMimeType: 'application/json',
+                    temperature: 0.3
+                }
+            });
+            break; // Éxito
+        } catch (e) {
+            console.warn(`[AI] Fallo con modelo ${modelName}:`, e.message);
+            lastError = e;
+        }
+    }
+
+    if (!res) {
+        console.warn('[AI] Todos los modelos Gemini fallaron:', lastError?.message, '→ regex fallback');
+        return regexFallback(transcript, appState);
+    }
+
+    try {
         const raw = res.text?.trim();
         console.log('[AI] Raw:', raw);
         if (!raw) throw new Error('Empty Gemini response');
