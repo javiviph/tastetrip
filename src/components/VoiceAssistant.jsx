@@ -36,6 +36,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
     const chatHistoryRef = useRef([]); // Full conversation history for Gemini
     const pendingOriginRef = useRef('');
     const pendingDestRef = useRef('');
+    const askedForWaypointsRef = useRef(false);
 
     // ── Filtered POIs (for context) ──────────────────────────────────────────
     const filteredPois = useMemo(() => {
@@ -153,16 +154,19 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 if (args.destination) pendingDestRef.current = args.destination;
 
                 if (origin && destination) {
+                    const isNewRoute = (!routeDetails?.originName || (origin.toLowerCase() !== routeDetails.originName.toLowerCase()));
+                    if (isNewRoute && !waypoints && !askedForWaypointsRef.current) {
+                        speak('Antes de trazar la ruta, ¿quieres que busquemos restaurantes en el camino o alguna otra ciudad de paso?', true);
+                        askedForWaypointsRef.current = true;
+                        return;
+                    }
+
                     console.log('[VA] Calling onSearchRequest:', origin, '→', destination, 'via', waypoints);
-                    // Pass existing waypoints from routeDetails if we are not wiping them explicitly?
-                    // Generally VoiceAssistant re-sends the whole route or we just merge them.
-                    // For now, if we have waypoints, we pass them. If null, we might wipe them unless we preserve them.
-                    // Actually, if args.waypoints is passed, we USE it. But if the user just says "cambia el destino", we need to preserve existing waypoints!
-                    // Let's pass the union or the current ones if args.waypoints is null.
                     const finalWaypoints = waypoints || routeDetails?.waypoints?.map(w => w.name || 'Parada') || [];
                     onSearchRequest(origin, destination, finalWaypoints.length > 0 ? finalWaypoints : null);
                     pendingOriginRef.current = '';
                     pendingDestRef.current = '';
+                    askedForWaypointsRef.current = false;
                 }
                 break;
             }
@@ -176,6 +180,17 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     const finalWaypoints = [...currentWaypoints, ...newWaypoints];
                     console.log('[VA] Calling onSearchRequest to add waypoint:', origin, '→', destination, 'via', finalWaypoints);
                     onSearchRequest(origin, destination, finalWaypoints);
+                }
+                break;
+            }
+            case 'remove_waypoint': {
+                const wpToRemove = args.waypoints && args.waypoints[0];
+                const origin = routeDetails?.originName;
+                const destination = routeDetails?.destinationName;
+                if (origin && destination && wpToRemove) {
+                    const currentWaypoints = routeDetails?.waypoints?.map(w => w.name || 'Parada') || [];
+                    const finalWaypoints = currentWaypoints.filter(w => !w.toLowerCase().includes(wpToRemove.toLowerCase()));
+                    onSearchRequest(origin, destination, finalWaypoints.length > 0 ? finalWaypoints : null);
                 }
                 break;
             }
@@ -308,6 +323,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             chatHistoryRef.current = [];
             pendingOriginRef.current = '';
             pendingDestRef.current = '';
+            askedForWaypointsRef.current = false;
             // Pre-request permissions if mobile to avoid initial block if possible
             if (isMobile) {
                 try { navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => { }); } catch (e) { }
