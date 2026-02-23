@@ -116,7 +116,7 @@ export { fetchOSRMRoute };
 
 const TravelerDashboard = () => {
   const [search, setSearch] = useState({ origin: '', destination: '', waypoints: [] });
-  const { setRouteDetails, setBaseRoute } = useAppContext();
+  const { routeDetails, setRouteDetails, setBaseRoute, setTotalRoute, setAddedRoutePoints } = useAppContext();
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: '', type: '' });
 
@@ -171,6 +171,14 @@ const TravelerDashboard = () => {
     r = r.replace(/^(estoy saliendo desde|salgo desde|salgo de|vengo desde|vengo de|voy hacia|voy a|me dirijo a|me dirijo hacia|parto desde|parto de|llegando a)\s+/gi, '');
     r = r.replace(/^(desde|hacia|hasta|para|de|a)\s+/gi, '');
     return r.trim();
+  };
+
+  const clearRoute = () => {
+    setSearch({ origin: '', destination: '', waypoints: [] });
+    setRouteDetails({ origin: null, originName: '', destination: null, destinationName: '', waypoints: [] });
+    setBaseRoute(null);
+    setTotalRoute(null);
+    setAddedRoutePoints([]);
   };
 
   const handleSearch = async (overrideOrigin, overrideDest, overrideWaypoints = null) => {
@@ -349,6 +357,16 @@ const TravelerDashboard = () => {
                 </>
               )}
             </button>
+
+            {routeDetails?.origin && routeDetails?.destination && (
+              <button
+                onClick={clearRoute}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#ef4444', fontWeight: '600', padding: '12px', fontSize: '14px', borderRadius: '12px', border: '1px solid #fee2e2', backgroundColor: 'transparent', transition: 'all 0.2s', marginTop: '4px' }}
+                className="delete-btn-hover"
+              >
+                <Trash2 size={16} /> Borrar toda la ruta
+              </button>
+            )}
           </div>
         </div>
 
