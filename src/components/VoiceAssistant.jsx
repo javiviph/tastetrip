@@ -17,6 +17,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         setActiveFilters,
         setDepartureTime,
         routeDetails,
+        setRouteDetails,
         pois,
         baseRoute,
         totalRoute,
@@ -156,6 +157,9 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 if (origin && destination) {
                     const isNewRoute = (!routeDetails?.originName || (origin.toLowerCase() !== routeDetails.originName.toLowerCase()));
                     if (isNewRoute && !waypoints && !askedForWaypointsRef.current) {
+                        // Store pending route so fallback & Gemini know where we're going
+                        setRouteDetails(prev => ({ ...prev, pendingOrigin: origin, pendingDest: destination }));
+                        window.__lastAssistantQuestion = 'parada ciudad de paso busquemos';
                         speak('Antes de trazar la ruta, ¿quieres que busquemos restaurantes en el camino o alguna otra ciudad de paso?', true);
                         askedForWaypointsRef.current = true;
                         return;
@@ -167,6 +171,8 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     pendingOriginRef.current = '';
                     pendingDestRef.current = '';
                     askedForWaypointsRef.current = false;
+                    // Clear pending
+                    setRouteDetails(prev => ({ ...prev, pendingOrigin: null, pendingDest: null }));
                 }
                 break;
             }
@@ -180,6 +186,8 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     const finalWaypoints = [...currentWaypoints, ...newWaypoints];
                     console.log('[VA] Calling onSearchRequest to add waypoint:', origin, '→', destination, 'via', finalWaypoints);
                     onSearchRequest(origin, destination, finalWaypoints);
+                    askedForWaypointsRef.current = false;
+                    setRouteDetails(prev => ({ ...prev, pendingOrigin: null, pendingDest: null }));
                 }
                 break;
             }

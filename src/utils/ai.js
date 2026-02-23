@@ -44,7 +44,37 @@ function regexFallback(transcript, appState) {
         return { speak: `¿Qué restaurante quieres añadir?`, action: 'none', actionArgs: {} };
     }
 
-    // POI remove
+    // Waypoint city add (city stop, not restaurant)
+    if (/pasar por|paso por|hacer una parada en|parada en|quiero pasar|pasando por|añadir.*parada|pasar.*ciudad|quiero ir también por/.test(lower)) {
+        const wpMatch = lower.match(/(?:pasar por|paso por|parada en|pasar.*ciudad|pasando por)\s+([a-z\sáéíóúñ]{2,25})/i);
+        const city = wpMatch ? cleanCity(wpMatch[1]) : null;
+        if (city) return { speak: `Perfecto, añado parada en ${city}.`, action: 'add_waypoint', actionArgs: { waypoints: [city] } };
+    }
+
+    // Waypoint city remove
+    if (/quita|elimina|saca/.test(lower) && (/parada|ciudad|paso|ruta/.test(lower))) {
+        const wpRemoveMatch = lower.match(/(?:quita|elimina|saca).*?([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)/i);
+        const city = wpRemoveMatch ? cleanCity(wpRemoveMatch[1]) : null;
+        if (city) return { speak: `${city} quitada de la ruta.`, action: 'remove_waypoint', actionArgs: { waypoints: [city] } };
+    }
+
+    // Positive answer to "¿quieres añadir parada?" — context-aware
+    if (lastQ.includes('parada') || lastQ.includes('ciudad de paso') || lastQ.includes('busquemos')) {
+        // "sí" / "no" responses
+        if (/^(no|nada|directo|sin paradas?|sin ciudades?)/.test(lower)) {
+            const o = routeDetails?.pendingOrigin || routeDetails?.originName || '';
+            const d = routeDetails?.pendingDest || routeDetails?.destinationName || '';
+            if (o && d) return { speak: `Calculando ruta directa.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [] } };
+        }
+        const city = cleanCity(transcript);
+        if (city && city.split(' ').length <= 4 && !/qué|cómo|cuándo|dónde|hay/.test(lower)) {
+            const o = routeDetails?.pendingOrigin || routeDetails?.originName || '';
+            const d = routeDetails?.pendingDest || routeDetails?.destinationName || '';
+            if (o && d) return { speak: `Ruta vía ${city} en curso.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [city] } };
+        }
+    }
+
+    // POI remove (restaurant)
     if (/quita|elimina|borra|saca/.test(lower)) {
         const m = addedRoutePoints.find(p => p.name.toLowerCase().split(' ').some(w => w.length > 3 && lower.includes(w)));
         if (m) return { speak: `Quitado ${m.name}.`, action: 'remove_poi', actionArgs: { poi: m } };
@@ -101,6 +131,15 @@ function regexFallback(transcript, appState) {
         }
     }
 
+    // Context-aware: last question was about waypoints/stops
+    if (lastQ.includes('parada') || lastQ.includes('ciudad de paso') || lastQ.includes('busquemos') || lastQ.includes('paso')) {
+        if (/^(no|nada|directo|sin paradas?|adelante|continúa|sigue)/.test(lower)) {
+            const o = routeDetails?.pendingOrigin || routeDetails?.originName;
+            const d = routeDetails?.pendingDest || routeDetails?.destinationName;
+            if (o && d) return { speak: `Calculando ruta directa.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [] } };
+        }
+    }
+
     // Bare city name (1-3 words, no question marks)
     if (words.length <= 3 && !/[¿?]/.test(transcript) && !/qué|cómo|cuándo|dónde|hay/.test(lower)) {
         const city = cleanCity(transcript);
@@ -141,6 +180,8 @@ function buildContext(appState) {
             ? ` → ${routeDetails.waypoints.map(w => w.name || 'Parada').join(' → ')}`
             : '';
         routeBlock = `${routeDetails.originName}${wps} → ${routeDetails.destinationName} | ${km} km | ${dur}${times}`;
+    } else if (routeDetails?.pendingOrigin && routeDetails?.pendingDest) {
+        routeBlock = `Ruta pendiente de confirmar: ${routeDetails.pendingOrigin} → ${routeDetails.pendingDest}. El asistente preguntó si el usuario quiere paradas; esperando respuesta.`;
     }
 
     const stopsBlock = addedRoutePoints.length > 0
@@ -189,12 +230,11 @@ REGLAS (no negociables):
 4. Cuando actives un filtro: cuenta cuántos restaurantes del catálogo tienen ese servicio y nombra los mejores.
 5. Para hablar de duración/llegada: usa los datos de ESTADO DEL VIAJE.
 6. Sé breve y conversacional. Máximo 2-3 frases.
-
-8. ¡IMPORTANTE SOBRE RUTAS! Si el usuario te pide una ruta (ej: "voy de Madrid a Barcelona") POR PRIMERA VEZ y no especifica paradas intermedias, DEBES responderle preguntando si quiere añadir alguna parada (ej: "¿Quieres que busquemos restaurantes antes de trazar la ruta o añadir alguna otra ciudad de paso?") y devuelve action:"none".
-9. Si el usuario te dice que no quiere paradas extra, o si te da las paradas en ese momento (ej: "sí, quiero parar en Zaragoza"), ENTONCES responde con action:"calculate_route" y si te dio paradas, mételas en el array "waypoints" : ["Zaragoza"].
-10. ¡MUY IMPORTANTE! SÓLO puedes añadir restaurantes a tu ruta (action: "add_poi") si están presentes ESPECÍFICAMENTE en la sección "En ruta" (abiertos y en el camino). Si un usuario te pide añadir un restaurante del "CATÁLOGO COMPLETO" que NO aparece "En ruta" dile amablemente que nos pilla a desmano.
-11. Si tras tener la ruta trazada el usuario quiere hacer una parada extra en una ciudad, pueblo, o lugar geográfico general (NO un restaurante), usa la acción "add_waypoint" y pon la ciudad en la propiedad "waypoints". Ejemplo: "vamos a hacer una parada en Logroño" → action: "add_waypoint", waypoints: ["Logroño"].
-12. Para quitar una ciudad: action:"remove_waypoint", waypoints:["Ciudad a quitar"].
+7. ¡IMPORTANTE SOBRE RUTAS! Cuando el usuario mencione por primera vez origen y destino sin especificar paradas, responde con action:"none" preguntando si quiere paradas, NO calcules la ruta todavía.
+8. Si ves en ESTADO DEL VIAJE "Ruta pendiente de confirmar: X → Y", significa que ya preguntaste sobre paradas y el usuario está respondiendo ahora. Tú debes: a) Si dicen "no/directo/sin paradas": action:"calculate_route" con origin=X, destination=Y, waypoints:[]. b) Si mencionan una ciudad (ej: "Tarragona", "me gustaría pasar por Tarragona"): action:"calculate_route" con origin=X, destination=Y, waypoints:["Tarragona"]. c) Si quieren varias paradas: inclúyelas todas en waypoints:.
+9. ¡MUY IMPORTANTE! SÓLO puedes añadir restaurantes (action:"add_poi") si están en la sección "En ruta". Si no está en ruta, di que no está de camino.
+10. Si tras tener la ruta calculada el usuario pide una parada en una ciudad o lugar geográfico (NO restaurante): action:"add_waypoint", waypoints:["Ciudad"].
+11. Si quieren quitar una ciudad de la ruta: action:"remove_waypoint", waypoints:["Ciudad"].
 
 FORMATO JSON (todos los campos, siempre):
 {"speak":"texto en voz alta","action":"accion","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
@@ -202,10 +242,11 @@ FORMATO JSON (todos los campos, siempre):
 ACCIONES: calculate_route | add_poi | remove_poi | add_waypoint | remove_waypoint | set_filter | clear_filter | set_departure_time | none
 
 EJEMPLOS:
-"voy de Bilbao a San Sebastián" → {"speak":"Perfecto. Antes de trazar la ruta, ¿quieres que añadamos alguna parada intermedia o restaurante en el camino?","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"no, directo" → {"speak":"Venga, calculando ahora mismo ruta directa.","action":"calculate_route","origin":"Bilbao","destination":"San Sebastián","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"sí, pasemos por Pamplona" → {"speak":"Hecho, ruta pasando por Pamplona en curso.","action":"calculate_route","origin":"Bilbao","destination":"San Sebastián","waypoints":["Pamplona"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"salgo desde Madrid hacia Sevilla y quiero parar en Córdoba" → {"speak":"Genial, incluyo Córdoba en tus paradas en camino a Sevilla.","action":"calculate_route","origin":"Madrid","destination":"Sevilla","waypoints":["Córdoba"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+// Ruta pendiente Madrid→Andorra, usuario responde con ciudad de paso:
+[ESTADO: "Ruta pendiente de confirmar: Madrid → Andorra"] + "me gustaría pasar por Tarragona" → {"speak":"Perfecto, ruta pasando por Tarragona en camino a Andorra.","action":"calculate_route","origin":"Madrid","destination":"Andorra","waypoints":["Tarragona"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+// Ruta pendiente, usuario dice no quiere paradas:
+[ESTADO: "Ruta pendiente de confirmar: Madrid → Andorra"] + "no, directo" → {"speak":"Venga, calculando ruta directa.","action":"calculate_route","origin":"Madrid","destination":"Andorra","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"voy de Bilbao a San Sebastián" → {"speak":"Perfecto. ¿Quieres que añadamos alguna parada o ciudad de paso en el camino?","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "añade Zaragoza a la ruta" → {"speak":"Claro, recalculando la ruta pasando por Zaragoza.","action":"add_waypoint","origin":"","destination":"","waypoints":["Zaragoza"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "quita Zaragoza de la ruta" → {"speak":"Zaragoza eliminada de tus paradas.","action":"remove_waypoint","origin":"","destination":"","waypoints":["Zaragoza"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 "¿cuándo llego?" → {"speak":"Según la ruta, llegas sobre las diecisiete y media.","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
