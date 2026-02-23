@@ -148,11 +148,12 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             case 'calculate_route': {
                 const origin = args.origin || pendingOriginRef.current;
                 const destination = args.destination || pendingDestRef.current;
+                const waypoints = args.waypoints && args.waypoints.length > 0 ? args.waypoints : null;
                 if (origin) pendingOriginRef.current = origin;
                 if (destination) pendingDestRef.current = destination;
                 if (pendingOriginRef.current && pendingDestRef.current) {
-                    console.log('[VA] Calling onSearchRequest:', pendingOriginRef.current, '→', pendingDestRef.current);
-                    onSearchRequest(pendingOriginRef.current, pendingDestRef.current);
+                    console.log('[VA] Calling onSearchRequest:', pendingOriginRef.current, '→', pendingDestRef.current, 'via', waypoints);
+                    onSearchRequest(pendingOriginRef.current, pendingDestRef.current, waypoints);
                     pendingOriginRef.current = '';
                     pendingDestRef.current = '';
                 }
@@ -164,7 +165,8 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             case 'set_destination':
                 pendingDestRef.current = args.destination;
                 if (pendingOriginRef.current && pendingDestRef.current) {
-                    onSearchRequest(pendingOriginRef.current, pendingDestRef.current);
+                    const waypoints = args.waypoints && args.waypoints.length > 0 ? args.waypoints : null;
+                    onSearchRequest(pendingOriginRef.current, pendingDestRef.current, waypoints);
                     pendingOriginRef.current = '';
                     pendingDestRef.current = '';
                 }

@@ -7,7 +7,7 @@ import AdminPanel from './components/AdminPanel';
 import RoutePlanner from './components/RoutePlanner';
 import VoiceAssistant from './components/VoiceAssistant';
 import { useAppContext } from './context/AppContext';
-import { Search, ChevronRight, MapPin, Loader2, AlertCircle, X } from 'lucide-react';
+import { Search, ChevronRight, MapPin, Loader2, AlertCircle, X, Plus, Trash2 } from 'lucide-react';
 
 const Toast = ({ message, type, onClose }) => {
   if (!message) return null;
@@ -68,9 +68,15 @@ const decodePolyline = (encoded) => {
 };
 
 // Fetch full OSRM route with geometry
-const fetchOSRMRouteWithGeometry = async (origin, destination) => {
+const fetchOSRMRouteWithGeometry = async (origin, destination, waypoints = []) => {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=polyline`;
+    const coords = [
+      `${origin.lng},${origin.lat}`,
+      ...waypoints.map(w => `${w.lng},${w.lat}`),
+      `${destination.lng},${destination.lat}`
+    ].join(';');
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=polyline`;
     const resp = await fetch(url);
     const data = await resp.json();
     if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
@@ -109,7 +115,7 @@ const fetchOSRMRoute = async (originLat, originLng, poiLat, poiLng, destLat, des
 export { fetchOSRMRoute };
 
 const TravelerDashboard = () => {
-  const [search, setSearch] = useState({ origin: '', destination: '' });
+  const [search, setSearch] = useState({ origin: '', destination: '', waypoints: [] });
   const { setRouteDetails, setBaseRoute } = useAppContext();
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: '', type: '' });
@@ -167,17 +173,19 @@ const TravelerDashboard = () => {
     return r.trim();
   };
 
-  const handleSearch = async (overrideOrigin, overrideDest) => {
+  const handleSearch = async (overrideOrigin, overrideDest, overrideWaypoints = null) => {
     let o = search.origin;
     let d = search.destination;
+    let w = search.waypoints;
 
     // Check if arguments were explicitly provided as strings by VoiceAssistant
     if (typeof overrideOrigin === 'string') o = sanitizeCity(overrideOrigin);
     if (typeof overrideDest === 'string') d = sanitizeCity(overrideDest);
+    if (Array.isArray(overrideWaypoints)) w = overrideWaypoints.map(sanitizeCity);
 
-    if (overrideOrigin || overrideDest) {
+    if (overrideOrigin || overrideDest || overrideWaypoints) {
       // Update user-visible inputs as well
-      setSearch({ origin: o, destination: d });
+      setSearch({ origin: o, destination: d, waypoints: w });
     }
 
     if (!o || !d) {
@@ -212,15 +220,31 @@ const TravelerDashboard = () => {
         return;
       }
 
+      // Step 2.5: Geocode Waypoints
+      let waypointsCoords = [];
+      for (const wp of w) {
+        if (!wp.trim()) continue;
+        try {
+          const coords = await geocode(wp);
+          if (!coords) throw new Error(`No se encontró la parada: ${wp}`);
+          waypointsCoords.push(coords);
+          await sleep(1100);
+        } catch (e) {
+          showToast(e.message);
+          return;
+        }
+      }
+
       setRouteDetails({
         origin: { lat: originCoords.lat, lng: originCoords.lng },
         originName: originCoords.name,
         destination: { lat: destCoords.lat, lng: destCoords.lng },
-        destinationName: destCoords.name
+        destinationName: destCoords.name,
+        waypoints: waypointsCoords
       });
 
       // Step 3: Fetch the full route with geometry from OSRM
-      const routeInfo = await fetchOSRMRouteWithGeometry(originCoords, destCoords);
+      const routeInfo = await fetchOSRMRouteWithGeometry(originCoords, destCoords, waypointsCoords);
       if (routeInfo) {
         setBaseRoute(routeInfo);
         console.log(`Ruta calculada: ${(routeInfo.distance / 1000).toFixed(1)} km`);
@@ -262,6 +286,40 @@ const TravelerDashboard = () => {
               />
               <MapPin size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '15px' }} />
             </div>
+
+            {search.waypoints.map((wp, i) => (
+              <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    type="text"
+                    placeholder="Parada intermedia"
+                    style={{ width: '100%', padding: '14px 14px 14px 40px', borderRadius: '12px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-offset)', fontSize: '15px' }}
+                    value={wp}
+                    onChange={e => {
+                      const newW = [...search.waypoints];
+                      newW[i] = e.target.value;
+                      setSearch({ ...search, waypoints: newW });
+                    }}
+                    onKeyPress={e => e.key === 'Enter' && handleSearch()}
+                  />
+                  <MapPin size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '15px' }} />
+                </div>
+                <button
+                  onClick={() => setSearch({ ...search, waypoints: search.waypoints.filter((_, idx) => idx !== i) })}
+                  style={{ padding: '14px', color: '#ef4444', backgroundColor: 'var(--bg-offset)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', alignItems: 'center' }}
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+
+            <button
+              onClick={() => setSearch({ ...search, waypoints: [...search.waypoints, ''] })}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', fontWeight: '600', alignSelf: 'flex-start', padding: '4px 8px', fontSize: '14px' }}
+            >
+              <Plus size={16} /> Añadir parada
+            </button>
+
             <div style={{ position: 'relative' }}>
               <input
                 type="text"

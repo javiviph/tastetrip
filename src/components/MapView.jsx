@@ -43,7 +43,7 @@ const createPoiIcon = (poi, isHovered, isSelected) => {
     });
 };
 
-const RoutingMachine = ({ origin, destination, points = [] }) => {
+const RoutingMachine = ({ origin, destination, intermediateWaypoints = [], points = [] }) => {
     const map = useMap();
     const routingControlRef = useRef(null);
     const { setTotalRoute } = useAppContext();
@@ -59,6 +59,7 @@ const RoutingMachine = ({ origin, destination, points = [] }) => {
 
         const waypoints = [
             L.latLng(origin.lat, origin.lng),
+            ...intermediateWaypoints.map(w => L.latLng(w.lat, w.lng)),
             ...points.map(p => L.latLng(p.coords[0], p.coords[1])),
             L.latLng(destination.lat, destination.lng)
         ];
@@ -193,6 +194,7 @@ const MapView = () => {
                     <RoutingMachine
                         origin={routeDetails.origin}
                         destination={routeDetails.destination}
+                        intermediateWaypoints={routeDetails.waypoints || []}
                         points={addedRoutePoints}
                     />
                 )}

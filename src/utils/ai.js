@@ -187,18 +187,22 @@ REGLAS (no negociables):
 5. Para hablar de duración/llegada: usa los datos de ESTADO DEL VIAJE.
 6. Sé breve y conversacional. Máximo 2-3 frases.
 
+8. ¡IMPORTANTE SOBRE RUTAS! Si el usuario te pide una ruta (ej: "voy de Madrid a Barcelona") POR PRIMERA VEZ y no especifica paradas intermedias, DEBES responderle preguntando si quiere añadir alguna parada (ej: "¿Quieres que busquemos restaurantes antes de trazar la ruta o añadir alguna otra ciudad de paso?") y devuelve action:"none".
+9. Si el usuario te dice que no quiere paradas extra, o si te da las paradas en ese momento (ej: "sí, quiero parar en Zaragoza"), ENTONCES responde con action:"calculate_route" y si te dio paradas, mételas en el array "waypoints" : ["Zaragoza"].
+
 FORMATO JSON (todos los campos, siempre):
-{"speak":"texto en voz alta","action":"accion","origin":"","destination":"","poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+{"speak":"texto en voz alta","action":"accion","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
 
 ACCIONES: calculate_route | add_poi | remove_poi | set_filter | clear_filter | set_departure_time | none
 
 EJEMPLOS:
-"quiero ir de Bilbao a San Sebastián" → {"speak":"Venga, calculando ahora.","action":"calculate_route","origin":"Bilbao","destination":"San Sebastián","poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"salgo desde Madrid hacia Sevilla" → {"speak":"Perfecto, en camino.","action":"calculate_route","origin":"Madrid","destination":"Sevilla","poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"¿cuándo llego?" → {"speak":"Según la ruta, llegas sobre las diecisiete y media.","action":"none","origin":"","destination":"","poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"activa terraza" → {"speak":"Hecho. Con terraza hay dos sitios en ruta: El Figón y Casa Lucio. ¿Te apetece alguno?","action":"set_filter","origin":"","destination":"","poiName":"","filterKey":"terraza","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"añade Casa Lucio" → {"speak":"¡Apuntado! Casa Lucio en tus paradas.","action":"add_poi","origin":"","destination":"","poiName":"Casa Lucio","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
-"¿qué hay para comer?" → {"speak":"En ruta tienes varios buenos, el mejor valorado es Cal Pep en Barcelona. ¿Lo añado?","action":"none","origin":"","destination":"","poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}`;
+"voy de Bilbao a San Sebastián" → {"speak":"Perfecto. Antes de trazar la ruta, ¿quieres que añadamos alguna parada intermedia o restaurante en el camino?","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"no, directo" → {"speak":"Venga, calculando ahora mismo ruta directa.","action":"calculate_route","origin":"Bilbao","destination":"San Sebastián","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"sí, pasemos por Pamplona" → {"speak":"Hecho, ruta pasando por Pamplona en curso.","action":"calculate_route","origin":"Bilbao","destination":"San Sebastián","waypoints":["Pamplona"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"salgo desde Madrid hacia Sevilla y quiero parar en Córdoba" → {"speak":"Genial, incluyo Córdoba en tus paradas en camino a Sevilla.","action":"calculate_route","origin":"Madrid","destination":"Sevilla","waypoints":["Córdoba"],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"¿cuándo llego?" → {"speak":"Según la ruta, llegas sobre las diecisiete y media.","action":"none","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"activa terraza" → {"speak":"Hecho. Con terraza hay dos sitios en ruta: El Figón y Casa Lucio. ¿Te apetece alguno?","action":"set_filter","origin":"","destination":"","waypoints":[],"poiName":"","filterKey":"terraza","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}
+"añade Casa Lucio" → {"speak":"¡Apuntado! Casa Lucio en tus paradas.","action":"add_poi","origin":"","destination":"","waypoints":[],"poiName":"Casa Lucio","filterKey":"","filterValue":true,"hours":0,"minutes":0,"tomorrow":false}`;
 
     const contents = [
         ...history.map(h => ({
@@ -233,6 +237,7 @@ EJEMPLOS:
             actionArgs: {
                 origin: cleanCity(p.origin || ''),
                 destination: cleanCity(p.destination || ''),
+                waypoints: Array.isArray(p.waypoints) ? p.waypoints.map(cleanCity) : [],
                 poiName: p.poiName || '',
                 key: p.filterKey || '',
                 value: p.filterValue !== undefined ? p.filterValue : true,
