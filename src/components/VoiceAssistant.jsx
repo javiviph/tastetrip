@@ -27,6 +27,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         departureTime: currentDepartureTime,
         addedRoutePoints,
         setAddedRoutePoints,
+        aiAssistEnabled,
     } = useAppContext();
 
     const stateRef = useRef('IDLE');
@@ -474,11 +475,18 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             pendingDestRef.current = '';
             askedWaypointsForDestRef.current = '';
             conversationPhaseRef.current = 'ASKING_ORIGIN';
-            // Pre-request permissions if mobile to avoid initial block if possible
             if (isMobile) {
                 try { navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => { }); } catch (e) { }
             }
-            speak('¡Hola! ¿Desde qué ciudad sales hoy?', true);
+            if (!aiAssistEnabled) {
+                // AI is disabled — play coming-soon message and close after
+                speak(
+                    '¡Hola! Soy tu asistente en ruta. Muy pronto estaré disponible para ayudarte en tus viajes y crear juntos rutas deliciosas. De momento puedes explorar la plataforma a tu ritmo. ¡Nos vemos pronto!',
+                    false
+                );
+            } else {
+                speak('¡Hola! ¿Desde qué ciudad sales hoy?', true);
+            }
         } else {
             isOpenRef.current = false;
             setIsOpen(false);

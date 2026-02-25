@@ -36,6 +36,14 @@ export const AppProvider = ({ children }) => {
     parking: false
   });
   const [hoveredPoiId, setHoveredPoiId] = useState(null);
+  // AI Assist toggle — persisted in localStorage so the admin setting survives reloads
+  const [aiAssistEnabled, setAiAssistEnabledState] = useState(
+    () => localStorage.getItem('tt_ai_assist') !== 'false' // default: enabled
+  );
+  const setAiAssistEnabled = (val) => {
+    localStorage.setItem('tt_ai_assist', val ? 'true' : 'false');
+    setAiAssistEnabledState(val);
+  };
 
   const addPoi = (newPoi) => {
     setPois(prev => [...prev, { ...newPoi, id: Date.now() }]);
@@ -70,7 +78,8 @@ export const AppProvider = ({ children }) => {
       activeFilters, setActiveFilters,
       searchRadius, setSearchRadius,
       onlyForward, setOnlyForward,
-      hoveredPoiId, setHoveredPoiId
+      hoveredPoiId, setHoveredPoiId,
+      aiAssistEnabled, setAiAssistEnabled,
     }}>
       {children}
     </AppContext.Provider>

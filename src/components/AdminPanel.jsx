@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Plus, Crosshair, Trash2, Edit3, Save, X, MapPin, Star } from 'lucide-react';
+import { Plus, Crosshair, Trash2, Edit3, Save, X, MapPin, Star, Sparkles } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -14,7 +14,7 @@ const LocationMarker = ({ setCoords }) => {
 };
 
 const AdminPanel = () => {
-    const { pois, addPoi, updatePoi, deletePoi } = useAppContext();
+    const { pois, addPoi, updatePoi, deletePoi, aiAssistEnabled, setAiAssistEnabled } = useAppContext();
     const [editingId, setEditingId] = useState(null);
     const [editData, setEditData] = useState({});
     const [formData, setFormData] = useState({
@@ -70,9 +70,63 @@ const AdminPanel = () => {
 
     return (
         <div style={{ padding: '110px 40px 40px', maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ marginBottom: '32px' }}>
-                <h2 style={{ fontSize: '32px', fontWeight: '800', marginBottom: '8px' }}>Panel de Administración</h2>
-                <p style={{ color: 'var(--text-muted)' }}>Crea, edita y gestiona los puntos de interés gastronómico.</p>
+            {/* AI Assist Beta toggle */}
+            <div className="card" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '20px 28px', marginBottom: '32px',
+                background: aiAssistEnabled
+                    ? 'linear-gradient(135deg, rgba(255,77,0,0.08), rgba(255,107,43,0.05))'
+                    : 'var(--bg-offset)',
+                border: `1px solid ${aiAssistEnabled ? 'rgba(255,77,0,0.25)' : 'var(--border)'}`,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{
+                        width: '44px', height: '44px', borderRadius: '12px',
+                        background: aiAssistEnabled
+                            ? 'linear-gradient(135deg, var(--primary), #ff6b2b)'
+                            : 'var(--border)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.3s'
+                    }}>
+                        <Sparkles size={20} color="white" />
+                    </div>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <h3 style={{ fontWeight: '800', fontSize: '17px', margin: 0 }}>AI Assist</h3>
+                            <span style={{
+                                fontSize: '11px', fontWeight: '700', padding: '2px 8px',
+                                borderRadius: '20px', letterSpacing: '0.05em',
+                                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                color: 'white'
+                            }}>BETA</span>
+                        </div>
+                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                            {aiAssistEnabled
+                                ? 'El asistente de voz está activo y funcional'
+                                : 'El asistente mostrará mensaje de próximamente'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Toggle switch */}
+                <button
+                    onClick={() => setAiAssistEnabled(!aiAssistEnabled)}
+                    style={{
+                        width: '56px', height: '30px', borderRadius: '15px',
+                        background: aiAssistEnabled ? 'var(--primary)' : 'var(--border)',
+                        border: 'none', cursor: 'pointer', position: 'relative',
+                        transition: 'background 0.25s', flexShrink: 0
+                    }}
+                    title={aiAssistEnabled ? 'Desactivar AI Assist' : 'Activar AI Assist'}
+                >
+                    <span style={{
+                        position: 'absolute', top: '3px',
+                        left: aiAssistEnabled ? '29px' : '3px',
+                        width: '24px', height: '24px', borderRadius: '50%',
+                        background: 'white', transition: 'left 0.25s',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                    }} />
+                </button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '40px' }}>
