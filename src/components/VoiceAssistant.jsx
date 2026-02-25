@@ -113,9 +113,13 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         window.__lastAssistantQuestion = text;
         setConversation(prev => [...prev, { role: 'assistant', text }]);
 
+        // Guard: onFinished must only fire once
+        let finished = false;
         const onFinished = () => {
+            if (finished) return;
+            finished = true;
             changeState('IDLE');
-            if (isOpenRef.current && askAndListen) setTimeout(() => startListening(), 150);
+            if (isOpenRef.current && askAndListen) setTimeout(() => startListening(), 200);
         };
 
         try {
@@ -126,12 +130,17 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 audio.onended = () => { audioRef.current = null; onFinished(); };
                 audio.onerror = () => { audioRef.current = null; onFinished(); };
                 await audio.play();
+                // Safety: if onended never fires, unblock after audio duration + 2s
+                audio.addEventListener('loadedmetadata', () => {
+                    setTimeout(onFinished, (audio.duration || 5) * 1000 + 2000);
+                });
             } else {
                 // Browser SpeechSynthesis fallback
                 if (!window.speechSynthesis) { onFinished(); return; }
                 window.speechSynthesis.cancel();
                 const msg = new SpeechSynthesisUtterance(text);
                 msg.lang = 'es-ES';
+                msg.rate = 1.0;
                 const voices = window.speechSynthesis.getVoices();
                 const v = voices.find(v => v.lang === 'es-ES' && v.name.includes('Google'))
                     || voices.find(v => v.lang === 'es-ES')
@@ -140,12 +149,17 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 msg.onend = onFinished;
                 msg.onerror = onFinished;
                 window.speechSynthesis.speak(msg);
+                // CHROME BUG: speechSynthesis.onend is unreliable on HTTPS.
+                // Fallback: estimate duration from word count (~120 words/min) + 1s buffer
+                const estimatedMs = Math.max(2000, (text.split(/\s+/).length / 2) * 1000);
+                setTimeout(onFinished, estimatedMs);
             }
         } catch (e) {
             console.error('TTS error:', e);
             onFinished();
         }
     };
+
 
     // ── Execute agent actions ─────────────────────────────────────────────────
     const executeAction = (action, args) => {
@@ -438,6 +452,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         recognition.lang = 'es-ES';
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
+        recognition.continuous = false;
 
         recognition.onresult = async (event) => {
             const transcript = event.results[0][0].transcript?.trim();
@@ -446,12 +461,19 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         };
 
         recognition.onerror = (e) => {
-            console.warn('[VA] Speech Error:', e.error, e.message);
+            console.warn('[VA] Speech Error:', e.error);
             if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-                alert('El micrófono está bloqueado. Otorga permiso o abre esta web en el navegador nativo (Safari/Chrome), no desde una app como Instagram.');
+                alert('El micrófono está bloqueado. Otorga permiso en la barra del navegador para usar el asistente.');
+                changeState('IDLE');
+                return;
             }
-            if (e.error !== 'aborted' && e.error !== 'no-speech') changeState('IDLE');
-            else if (e.error === 'no-speech') changeState('IDLE');
+            if (e.error === 'aborted') return; // intentional, ignore
+            changeState('IDLE');
+            // Auto-restart on no-speech during initial setup phases
+            if (e.error === 'no-speech' && isOpenRef.current &&
+                ['ASKING_ORIGIN', 'ASKING_DEST', 'ASKING_WAYPOINTS'].includes(conversationPhaseRef.current)) {
+                setTimeout(() => startListening(), 600);
+            }
         };
 
         recognition.onend = () => {
