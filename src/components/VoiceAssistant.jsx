@@ -520,68 +520,103 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     {/* Header */}
                     <div className="va-header">
                         <div className="va-header-left">
-                            <div className="va-dot" />
+                            <div className={`va-dot ${!aiAssistEnabled ? 'va-dot-off' : ''}`} />
                             <span className="va-title">TasteTrip AI</span>
-                            <span className="va-badge">Powered by Gemini</span>
+                            <span className="va-badge">{aiAssistEnabled ? 'Powered by Gemini' : 'Coming Soon'}</span>
                         </div>
                         <button onClick={handleToggle} className="va-close"><X size={18} /></button>
                     </div>
 
-                    {/* Chat */}
-                    <div className="va-chat">
-                        {conversation.length === 0 && (
-                            <div className="va-empty">
-                                <Sparkles size={28} className="va-empty-icon" />
-                                <p>Iniciando asistente...</p>
+                    {/* Disabled state: Coming Soon screen */}
+                    {!aiAssistEnabled ? (
+                        <div style={{
+                            flex: 1, display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center',
+                            padding: '40px 24px', gap: '16px', textAlign: 'center',
+                            background: 'var(--bg-offset)'
+                        }}>
+                            <div style={{
+                                width: '72px', height: '72px', borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 0 32px rgba(79,70,229,0.3)',
+                                animation: 'va-pulse 2.5s ease-in-out infinite'
+                            }}>
+                                <Sparkles size={32} color="white" />
                             </div>
-                        )}
-                        {conversation.map((msg, i) => (
-                            <div key={i} className={`va-bubble va-bubble-${msg.role}`}>
-                                {msg.text}
+                            <div>
+                                <h3 style={{ fontWeight: '800', fontSize: '18px', margin: '0 0 8px' }}>Coming Soon</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1.6, margin: 0 }}>
+                                    Muy pronto estaré disponible para ayudarte en tus viajes y crear juntos rutas deliciosas.
+                                    De momento, explora la plataforma a tu ritmo.
+                                </p>
                             </div>
-                        ))}
-                        <div ref={conversationEndRef} />
-                    </div>
-
-                    {/* Added route stops pill list */}
-                    {addedRoutePoints.length > 0 && (
-                        <div className="va-stops">
-                            <span className="va-stops-label">Paradas:</span>
-                            {addedRoutePoints.map(p => (
-                                <span key={p.id} className="va-stop-pill">
-                                    <MapPin size={10} />
-                                    {p.name}
-                                    <button onClick={() => setAddedRoutePoints(prev => prev.filter(x => x.id !== p.id))} className="va-stop-remove">
-                                        <Trash2 size={10} />
-                                    </button>
-                                </span>
-                            ))}
+                            <span style={{
+                                fontSize: '11px', fontWeight: '700', padding: '4px 12px',
+                                borderRadius: '20px', letterSpacing: '0.08em',
+                                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                color: 'white'
+                            }}>BETA · PRÓXIMAMENTE</span>
                         </div>
+                    ) : (
+                        <>
+                            {/* Chat */}
+                            <div className="va-chat">
+                                {conversation.length === 0 && (
+                                    <div className="va-empty">
+                                        <Sparkles size={28} className="va-empty-icon" />
+                                        <p>Iniciando asistente...</p>
+                                    </div>
+                                )}
+                                {conversation.map((msg, i) => (
+                                    <div key={i} className={`va-bubble va-bubble-${msg.role}`}>
+                                        {msg.text}
+                                    </div>
+                                ))}
+                                <div ref={conversationEndRef} />
+                            </div>
+
+                            {/* Added route stops pill list */}
+                            {addedRoutePoints.length > 0 && (
+                                <div className="va-stops">
+                                    <span className="va-stops-label">Paradas:</span>
+                                    {addedRoutePoints.map(p => (
+                                        <span key={p.id} className="va-stop-pill">
+                                            <MapPin size={10} />
+                                            {p.name}
+                                            <button onClick={() => setAddedRoutePoints(prev => prev.filter(x => x.id !== p.id))} className="va-stop-remove">
+                                                <Trash2 size={10} />
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Footer */}
+                            <div className="va-footer">
+                                <div className="va-waves">
+                                    {assistantState === 'LISTENING' && [1, 2, 3, 4, 5].map(i => (
+                                        <div key={i} className="va-wave" style={{ animationDelay: `${i * 0.1}s` }} />
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={micClickHandler}
+                                    disabled={assistantState === 'PROCESSING' || assistantState === 'SPEAKING'}
+                                    className={`va-mic ${assistantState === 'LISTENING' ? 'va-mic-active' : ''} ${assistantState === 'PROCESSING' || assistantState === 'SPEAKING' ? 'va-mic-busy' : ''}`}
+                                >
+                                    {assistantState === 'PROCESSING' ? <Loader2 size={22} className="va-spin" />
+                                        : assistantState === 'LISTENING' ? <MicOff size={22} />
+                                            : <Mic size={22} />}
+                                </button>
+                                <div className="va-status">
+                                    {assistantState === 'LISTENING' ? 'Te escucho...'
+                                        : assistantState === 'PROCESSING' ? 'Pensando...'
+                                            : assistantState === 'SPEAKING' ? 'Hablando...'
+                                                : 'Pulsa para hablar'}
+                                </div>
+                            </div>
+                        </>
                     )}
-
-                    {/* Footer */}
-                    <div className="va-footer">
-                        <div className="va-waves">
-                            {assistantState === 'LISTENING' && [1, 2, 3, 4, 5].map(i => (
-                                <div key={i} className="va-wave" style={{ animationDelay: `${i * 0.1}s` }} />
-                            ))}
-                        </div>
-                        <button
-                            onClick={micClickHandler}
-                            disabled={assistantState === 'PROCESSING' || assistantState === 'SPEAKING'}
-                            className={`va-mic ${assistantState === 'LISTENING' ? 'va-mic-active' : ''} ${assistantState === 'PROCESSING' || assistantState === 'SPEAKING' ? 'va-mic-busy' : ''}`}
-                        >
-                            {assistantState === 'PROCESSING' ? <Loader2 size={22} className="va-spin" />
-                                : assistantState === 'LISTENING' ? <MicOff size={22} />
-                                    : <Mic size={22} />}
-                        </button>
-                        <div className="va-status">
-                            {assistantState === 'LISTENING' ? 'Te escucho...'
-                                : assistantState === 'PROCESSING' ? 'Pensando...'
-                                    : assistantState === 'SPEAKING' ? 'Hablando...'
-                                        : 'Pulsa para hablar'}
-                        </div>
-                    </div>
                 </div>
             )}
 
@@ -614,7 +649,8 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                     padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg);
                 }
                 .va-header-left { display: flex; align-items: center; gap: 10px; }
-                .va-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; }
+                .va-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; animation: va-pulse 2s infinite; }
+                .va-dot-off { background: #9ca3af; box-shadow: none; animation: none; }
                 .va-title { font-weight: 800; font-size: 15px; }
                 .va-badge {
                     font-size: 10px; padding: 2px 8px; border-radius: 20px;
