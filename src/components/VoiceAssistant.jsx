@@ -377,24 +377,24 @@ const VoiceAssistant = ({ onSearchRequest }) => {
 
         // ── Phase: ASKING_WAYPOINTS ──────────────────────────────────────────
         if (conversationPhaseRef.current === 'ASKING_WAYPOINTS') {
-            const isNo = /^(no|nada|directo|directo?s?|sin paradas?|adelante|venga|dale|vamos|sigue|de frente|sin nada|ninguna?)/.test(lower);
+            // Search ANYWHERE in the phrase (not just start) so "prefiero ir directo" works
+            const isNo = /\b(no|nada|directo s?|sin paradas?|adelante|venga|dale|vamos|sigue|de frente|sin nada|ninguna?|directo)\b/.test(lower);
 
             if (isNo) {
                 conversationPhaseRef.current = 'ACTIVE';
                 onSearchRequest(pendingOriginRef.current, pendingDestRef.current, null);
                 setRouteDetails(prev => ({ ...prev, pendingOrigin: null, pendingDest: null }));
                 chatHistoryRef.current.push({ role: 'user', text: transcript });
-                // Route summary triggers from useEffect
                 await speak('', false);
                 return;
             }
 
-            // Check if user mentions a city as a stop
-            const stopRx = /(?:paro en|parar en|paso por|pasar por|pasando por|parada en|quiero pasar por|quiero parar en|por)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i;
+            // Only add a waypoint if user uses an EXPLICIT stop phrase
+            const stopRx = /(?:paro en|parar en|paso por|pasar por|pasando por|parada en|quiero pasar por|quiero parar en|me gustaría pasar por|pasaría por)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i;
             const sm = lower.match(stopRx);
             const waypoint = sm
                 ? sm[1].trim().charAt(0).toUpperCase() + sm[1].trim().slice(1)
-                : (lower.split(/\s+/).length <= 4 ? extractCity(lower) : null);
+                : null; // NO fallback extractCity — it caused false positives
 
             if (waypoint) {
                 conversationPhaseRef.current = 'ACTIVE';
@@ -405,7 +405,7 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 return;
             }
 
-            // Ambiguous: re-ask
+            // Ambiguous: re-ask clearly
             await speak(`¿Vamos directos o hay alguna ciudad por la que quieras pasar?`, true);
             return;
         }
