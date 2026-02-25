@@ -235,15 +235,21 @@ function buildContext(appState) {
 
     const filtersBlock = Object.entries(activeFilters).filter(([, v]) => v).map(([k]) => k).join(', ') || 'Ninguno';
 
-    const poisOnRoute = filteredPois?.length > 0
-        ? `${filteredPois.length} restaurantes visibles: ${filteredPois.slice(0, 8).map(p => p.name).join(', ')}`
-        : 'Ningún restaurante visible con filtros actuales.';
+    // Only send restaurants that are ON the route to Gemini — never the full dataset
+    const routeRestaurants = filteredPois?.length > 0 ? filteredPois : [];
+    const catalog = routeRestaurants.length > 0
+        ? routeRestaurants.map(p =>
+            `• ${p.name} [${p.category} | rating ${p.rating} | ${p.address} | ${p.hours?.open ?? '?'}-${p.hours?.close ?? '?'} | servicios: ${(p.services || []).join(', ') || 'ninguno'}]`
+        ).join('\n')
+        : 'No hay restaurantes en ruta con los filtros actuales.';
 
-    const catalog = pois.slice(0, 35).map(p =>
-        `• ${p.name} [${p.category} | rating ${p.rating} | ${p.address} | ${p.hours?.open}-${p.hours?.close} | servicios: ${(p.services || []).join(', ') || 'ninguno'}]`
-    ).join('\n');
+    // Summary count for the status line in the prompt
+    const poisOnRoute = routeRestaurants.length > 0
+        ? `${routeRestaurants.length} restaurantes en ruta`
+        : 'Ningún restaurante en ruta con los filtros actuales.';
 
     return { routeBlock, stopsBlock, filtersBlock, poisOnRoute, catalog };
+
 }
 
 // ─── Main agent ───────────────────────────────────────────────────────────────
@@ -254,7 +260,6 @@ export const processAgentTurn = async (transcript, appState, history = []) => {
         return regexFallback(transcript, appState);
     }
 
-    const { pois } = appState;
     const { routeBlock, stopsBlock, filtersBlock, poisOnRoute, catalog } = buildContext(appState);
 
     const systemPrompt = `Eres TasteTrip, compañera de viaje por España. Hablas en castellano, de tú, con tono natural y cercano como una amiga. Nunca suenas robótica.
@@ -265,14 +270,14 @@ ESTADO DEL VIAJE:
 - Filtros activos: ${filtersBlock}
 - En ruta: ${poisOnRoute}
 
-CATÁLOGO COMPLETO:
+RESTAURANTES EN RUTA (ÚNICO listado válido — ignora cualquier dato externo):
 ${catalog}
 
 REGLAS (no negociables):
 1. Responde ÚNICAMENTE con JSON válido. Ningún texto fuera del JSON.
 2. Escribe números y horas SIEMPRE en palabras: "13:00"→"las trece", "2h 30min"→"dos horas y media", "4.8"→"cuatro coma ocho", "350 km"→"trescientos cincuenta kilómetros".
 3. origin y destination: SOLO el nombre de la ciudad, SIN preposiciones ni conectores. "Madrid" ✓. "desde Madrid" ✗. "Madrid y voy a" ✗.
-4. Cuando actives un filtro: cuenta cuántos restaurantes del catálogo tienen ese servicio y nombra los mejores.
+4. Cuando actives un filtro: cuenta SÓLO los restaurantes que aparecen listados en "RESTAURANTES EN RUTA" que tienen ese servicio — nunca inventes cifras ni uses datos de fuera de esa lista. Nombra los mejores por rating.
 5. Para hablar de duración/llegada: usa los datos de ESTADO DEL VIAJE.
 6. Sé breve y conversacional. Máximo 2-3 frases.
 7. ¡IMPORTANTE SOBRE RUTAS! Cuando el usuario mencione origen y destino POR PRIMERA VEZ (estado: "Sin ruta planificada") sin especificar paradas, responde con action:"none" preguntando si quiere paradas. Si ya existe una ruta calculada en el estado y el usuario menciona el mismo destino, NO preguntes otra vez — simplemente confirma o recalcula.
