@@ -4,7 +4,7 @@ export const INITIAL_POIS = [
         id: 1, name: 'Restaurante Landa', description: 'Mítico palacio gótico a pie de autopista, famoso por sus huevos fritos con morcilla.',
         photos: ['https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80'],
         coords: [42.3168, -3.7029], category: 'Castellano', rating: 4.8, address: 'Autovía A-1, Km 235, 09001 Burgos',
-        hours: { open: '13:00', close: '23:30' }, services: ['parking', 'wifi', 'ev_charger']
+        hours: { open: '13:00', close: '23:30' }, services: ['parking', 'wifi', 'ev_charger', 'vegan']
     },
     {
         id: 2, name: 'El Lagar de Isilla', description: 'Restaurante y bodega tradicional espectacular para comer lechazo en ruta.',
@@ -16,7 +16,7 @@ export const INITIAL_POIS = [
         id: 3, name: 'Mesón de la Villa', description: 'Cocina arandina auténtica, perfecta para una parada contundente.',
         photos: ['https://images.unsplash.com/photo-1515443961218-a51367888e4b?auto=format&fit=crop&w=800&q=80'],
         coords: [41.6710, -3.6880], category: 'Asador', rating: 4.5, address: 'Plaza Mayor 3, Aranda de Duero (Salida A-1)',
-        hours: { open: '13:00', close: '23:30' }, services: ['wifi']
+        hours: { open: '13:00', close: '23:30' }, services: ['wifi', 'vegan']
     },
     {
         id: 4, name: 'La Morquecha', description: 'Asador rural de piedra, ideal como primera parada subiendo desde Madrid.',
@@ -28,7 +28,7 @@ export const INITIAL_POIS = [
         id: 5, name: 'El Refugio', description: 'Comida casera alavesa poco antes de llegar a Vitoria.',
         photos: ['https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80'],
         coords: [42.7661, -2.8686], category: 'Casero', rating: 4.3, address: 'Autovía A-1, km 325, La Puebla de Arganzón',
-        hours: { open: '12:00', close: '17:00' }, services: ['parking']
+        hours: { open: '12:00', close: '17:00' }, services: ['parking', 'vegan']
     },
 
     // === A-2: Madrid - Zaragoza - Barcelona ===
@@ -42,7 +42,7 @@ export const INITIAL_POIS = [
         id: 7, name: 'Mesón El Caserío', description: 'Punto perfecto de descanso en Medinaceli. Torreznos y buenas carnes.',
         photos: ['https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=800&q=80'],
         coords: [41.1717, -2.4334], category: 'Tradicional', rating: 4.4, address: 'Antigua N-II, km 151, Medinaceli',
-        hours: { open: '12:00', close: '23:00' }, services: ['parking', 'pet_friendly']
+        hours: { open: '12:00', close: '23:00' }, services: ['parking', 'pet_friendly', 'vegan']
     },
     {
         id: 8, name: 'Restaurante Monegros', description: 'Oasis en el desierto de los Monegros, parada obligatoria de camioneros y familias.',
@@ -54,7 +54,7 @@ export const INITIAL_POIS = [
         id: 9, name: 'El Cachirulo', description: 'Restaurante lujoso y amplio a la entrada de Zaragoza, ideal para celebraciones y viajeros exquisitos.',
         photos: ['https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=800&q=80'],
         coords: [41.6575, -0.9322], category: 'Aragonés', rating: 4.6, address: 'N-232, km 246, 50011 Zaragoza',
-        hours: { open: '13:30', close: '16:00' }, services: ['parking', 'terraza']
+        hours: { open: '13:30', close: '16:00' }, services: ['parking', 'terraza', 'vegan']
     },
     {
         id: 10, name: 'Restaurant Can Boix', description: 'Cataluña interior, con menú de brasa y caracoles excelente al lado de la A-2.',
@@ -66,7 +66,7 @@ export const INITIAL_POIS = [
         id: 11, name: 'La Gastronómica del Bruc', description: 'Antes de entrar a Barcelona, una parada de calidad con vistas a Montserrat.',
         photos: ['https://images.unsplash.com/photo-1551218808-94e220e084d2?auto=format&fit=crop&w=800&q=80'],
         coords: [41.5830, 1.7820], category: 'Mediterránea', rating: 4.4, address: 'Autovía A-2, km 570, El Bruc',
-        hours: { open: '13:00', close: '22:30' }, services: ['parking', 'terraza']
+        hours: { open: '13:00', close: '22:30' }, services: ['parking', 'terraza', 'vegan']
     },
 
     // === A-3: Madrid - Valencia ===
@@ -80,7 +80,7 @@ export const INITIAL_POIS = [
         id: 13, name: 'Restaurante Marino', description: 'Mítico de la A-3 en Honrubia. Comida manchega generosa y de calidad.',
         photos: ['https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=800&q=80'],
         coords: [39.6156, -2.2858], category: 'Manchego', rating: 4.5, address: 'Autovía A-3, km 167, Honrubia',
-        hours: { open: '11:00', close: '23:30' }, services: ['parking']
+        hours: { open: '11:00', close: '23:30' }, services: ['parking', 'vegan']
     },
     {
         id: 14, name: 'Venta San José', description: 'Clásico parador de camiones y viajeros buscando buen asado de cordero.',
@@ -92,7 +92,7 @@ export const INITIAL_POIS = [
         id: 15, name: 'Mesón La Cañada', description: 'Buen arroz y carne en Requena, el descanso perfecto antes de bajar a Valencia.',
         photos: ['https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=800&q=80'],
         coords: [39.4930, -1.1090], category: 'Tradicional', rating: 4.4, address: 'Autovía A-3, km 289, Requena',
-        hours: { open: '12:00', close: '23:00' }, services: ['parking']
+        hours: { open: '12:00', close: '23:00' }, services: ['parking', 'vegan']
     },
 
     // === A-4: Madrid - Andalucía ===
@@ -106,7 +106,7 @@ export const INITIAL_POIS = [
         id: 17, name: 'Mesón Despeñaperros', description: 'Legendario, con vistas al paso de Despeñaperros. Pescados y carnes de monte.',
         photos: ['https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=800&q=80'],
         coords: [38.3411, -3.5392], category: 'Andaluz', rating: 4.7, address: 'Autovía A-4, km 257, Santa Elena',
-        hours: { open: '12:00', close: '23:00' }, services: ['parking', 'wifi', 'terraza']
+        hours: { open: '12:00', close: '23:00' }, services: ['parking', 'wifi', 'terraza', 'vegan']
     },
     {
         id: 18, name: 'La Perdiz', description: 'Hotel-Restaurante famoso en la ruta sur, especialidad en perdiz escabechada.',
@@ -118,7 +118,7 @@ export const INITIAL_POIS = [
         id: 19, name: 'Abades Pedro Abad', description: 'Macro-área de servicio muy cómoda, moderna, y con andalucismos varios.',
         photos: ['https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=800&q=80'],
         coords: [37.9620, -4.4550], category: 'Área de servicio', rating: 4.1, address: 'Autovía A-4, km 360, Pedro Abad',
-        hours: { open: '00:00', close: '23:59' }, services: ['parking', 'wifi', 'ev_charger']
+        hours: { open: '00:00', close: '23:59' }, services: ['parking', 'wifi', 'ev_charger', 'vegan']
     },
     {
         id: 20, name: 'Venta Pinto', description: 'Icono del sur. Bocadillos de lomo en manteca increíbles cerca de Vejer.',
@@ -132,7 +132,7 @@ export const INITIAL_POIS = [
         id: 21, name: 'Restaurante El Gallo', description: 'Clásica parada en Talavera donde comer buen cerdo y caza a precio razonable.',
         photos: ['https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80'],
         coords: [39.9606, -4.8329], category: 'Casero', rating: 4.3, address: 'Autovía A-5, km 118, Talavera de la Reina',
-        hours: { open: '12:00', close: '22:00' }, services: ['parking']
+        hours: { open: '12:00', close: '22:00' }, services: ['parking', 'vegan']
     },
     {
         id: 22, name: 'Hostal Restaurante El Hidalgo', description: 'Famoso plato de cochifrito y amplios comedores, muy fácil para salir y entrar de la A-5.',
@@ -144,7 +144,7 @@ export const INITIAL_POIS = [
         id: 23, name: 'La Alta Campaña', description: 'Entrando en Trujillo, menús extremeños potentes sin desviarse apenas.',
         photos: ['https://images.unsplash.com/photo-1551218808-94e220e084d2?auto=format&fit=crop&w=800&q=80'],
         coords: [39.4670, -5.8750], category: 'Tradicional', rating: 4.5, address: 'Autovía A-5, km 253, Trujillo',
-        hours: { open: '12:30', close: '23:00' }, services: ['parking', 'wifi']
+        hours: { open: '12:30', close: '23:00' }, services: ['parking', 'wifi', 'vegan']
     },
     {
         id: 24, name: 'Complejo Roma', description: 'Gran complejo de descanso junto a Mérida con buffet y buena cafetería.',
@@ -158,7 +158,7 @@ export const INITIAL_POIS = [
         id: 25, name: 'Alto del León', description: 'Asador en pleno puerto de montaña. Chuletones y vistas hacia Madrid y Segovia.',
         photos: ['https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=800&q=80'],
         coords: [40.7099, -4.1481], category: 'Asador', rating: 4.7, address: 'N-VI / A-6, km 56, Alto de Guadarrama',
-        hours: { open: '13:00', close: '23:00' }, services: ['parking', 'terraza']
+        hours: { open: '13:00', close: '23:00' }, services: ['parking', 'terraza', 'vegan']
     },
     {
         id: 26, name: 'Asador Las Cubas', description: 'El tostón (cochinillo) de Arévalo en un ambiente inmejorable.',
@@ -170,7 +170,7 @@ export const INITIAL_POIS = [
         id: 27, name: 'El Ermitaño', description: 'Gastronomía de 1 estrella Michelin sin salir casi de la vía. Un lujo.',
         photos: ['https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=800&q=80'],
         coords: [42.0006, -5.6766], category: 'Gastro', rating: 4.9, address: 'Autovía A-6, km 260, Benavente',
-        hours: { open: '13:30', close: '23:00' }, services: ['parking', 'wifi']
+        hours: { open: '13:30', close: '23:00' }, services: ['parking', 'wifi', 'vegan']
     },
     {
         id: 28, name: 'Restaurante El Pescador', description: 'El pulpo y el pescado más fresco traído de Galicia al Bierzo.',
@@ -182,7 +182,7 @@ export const INITIAL_POIS = [
         id: 29, name: 'Hostal La Palloza', description: 'Caldo gallego y empanada coronando el puerto de Pedrafita.',
         photos: ['https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=800&q=80'],
         coords: [42.7275, -7.0253], category: 'Gallego', rating: 4.4, address: 'Autovía A-6, km 430, Pedrafita do Cebreiro',
-        hours: { open: '08:00', close: '00:00' }, services: ['parking']
+        hours: { open: '08:00', close: '00:00' }, services: ['parking', 'vegan']
     },
     {
         id: 30, name: 'La Hacienda', description: 'Especialidades maragatas en ruta, excelente cocido en La Bañeza.',
@@ -196,7 +196,7 @@ export const INITIAL_POIS = [
         id: 31, name: 'El Molino', description: 'En las faldas de Pajares. Fabada impresionante para entrar o salir de Asturias.',
         photos: ['https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80'],
         coords: [43.1558, -5.8291], category: 'Asturiano', rating: 4.7, address: 'Autovía A-66, km 59, Pola de Lena',
-        hours: { open: '13:00', close: '16:30' }, services: ['parking', 'wifi']
+        hours: { open: '13:00', close: '16:30' }, services: ['parking', 'wifi', 'vegan']
     },
     {
         id: 32, name: 'Restaurante Valle del Huerna', description: 'Chigre pegado a la autopista, chuletón y sidra en buena dosis.',
@@ -208,7 +208,7 @@ export const INITIAL_POIS = [
         id: 33, name: 'Cuatro Calzadas', description: 'Buen embutido ibérico y carnes, con amplio parking pasado Salamanca.',
         photos: ['https://images.unsplash.com/photo-1482049016688-2d3e1b311543?auto=format&fit=crop&w=800&q=80'],
         coords: [40.7589, -5.6264], category: 'Castellano', rating: 4.5, address: 'Autovía A-66, km 348, Buenavista',
-        hours: { open: '08:00', close: '23:00' }, services: ['parking', 'terraza']
+        hours: { open: '08:00', close: '23:00' }, services: ['parking', 'terraza', 'vegan']
     },
     {
         id: 34, name: 'Restaurante Roma Baños', description: 'Cordero asado y menú espectacular en el límite Cáceres-Salamanca.',
@@ -220,7 +220,7 @@ export const INITIAL_POIS = [
         id: 35, name: 'Complejo Leo', description: 'El reino del ibérico y el descanso 5 estrellas de la A-66. Bocadillos eternos.',
         photos: ['https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=800&q=80'],
         coords: [38.0875, -6.2625], category: 'Área de servicio', rating: 4.6, address: 'Autovía A-66, km 730, Monesterio',
-        hours: { open: '00:00', close: '23:59' }, services: ['parking', 'wifi', 'ev_charger']
+        hours: { open: '00:00', close: '23:59' }, services: ['parking', 'wifi', 'ev_charger', 'vegan']
     },
 
     // === AP-7 / A-7: Corredor Mediterráneo ===
@@ -234,7 +234,7 @@ export const INITIAL_POIS = [
         id: 37, name: 'Restaurante El Paso', description: 'Alta calidad de marisco y arroces a pocos minutos del peaje de L\'Ametlla.',
         photos: ['https://images.unsplash.com/photo-1534080564583-6be75777b70a?auto=format&fit=crop&w=800&q=80'],
         coords: [40.8840, 0.8030], category: 'Marisco', rating: 4.5, address: 'Autopista AP-7, salida 39, L\'Ametlla de Mar',
-        hours: { open: '13:00', close: '16:30' }, services: ['parking']
+        hours: { open: '13:00', close: '16:30' }, services: ['parking', 'vegan']
     },
     {
         id: 38, name: 'Restaurante Nou Racó', description: 'En plena Albufera, paellas a la leña desviándose muy poco de la autovía.',
@@ -246,7 +246,7 @@ export const INITIAL_POIS = [
         id: 39, name: 'Venta El Perull', description: 'Lugar tradicional alicantino, brasa de leña y tapas.',
         photos: ['https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=800&q=80'],
         coords: [38.8250, -0.0150], category: 'Tradicional', rating: 4.3, address: 'N-332 / AP-7, Ondara',
-        hours: { open: '08:00', close: '00:00' }, services: ['parking']
+        hours: { open: '08:00', close: '00:00' }, services: ['parking', 'vegan']
     },
     {
         id: 40, name: 'Venta del Pobre', description: 'El oasis gastronómico del levante almeriense, asados y platos de cuchara.',
@@ -258,7 +258,7 @@ export const INITIAL_POIS = [
         id: 41, name: 'Restaurante El Higuerón', description: 'Pescados y brasa con vistas increíbles del Mediterráneo sobre la A-7.',
         photos: ['https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=800&q=80'],
         coords: [36.5815, -4.5936], category: 'Mediterránea', rating: 4.8, address: 'Autovía A-7, Salida 217, Fuengirola',
-        hours: { open: '13:00', close: '00:00' }, services: ['parking', 'wifi', 'terraza']
+        hours: { open: '13:00', close: '00:00' }, services: ['parking', 'wifi', 'terraza', 'vegan']
     },
     {
         id: 42, name: 'Área La Paz', description: 'Punto de recarga y descanso masivo cerca de Murcia con un gran buffet.',
@@ -272,7 +272,7 @@ export const INITIAL_POIS = [
         id: 43, name: 'Casa Poli', description: 'Antigua casona indiana donde comer buena fabada y sidra cerca de Llanes.',
         photos: ['https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80'],
         coords: [43.3934, -4.6653], category: 'Asturiano', rating: 4.7, address: 'Autovía A-8, Salida Vidiago',
-        hours: { open: '13:00', close: '23:00' }, services: ['parking', 'terraza']
+        hours: { open: '13:00', close: '23:00' }, services: ['parking', 'terraza', 'vegan']
     },
     {
         id: 44, name: 'La Capitana', description: 'Excelente pescado a la parrilla y rabas en la bahía de Laredo.',
@@ -284,7 +284,7 @@ export const INITIAL_POIS = [
         id: 45, name: 'El Ancla', description: 'Magníficos pescados y arroces con vistas al Sella. Desvío en Ribadesella.',
         photos: ['https://images.unsplash.com/photo-1515443961218-a51367888e4b?auto=format&fit=crop&w=800&q=80'],
         coords: [43.4650, -5.0600], category: 'Marisco', rating: 4.6, address: 'A-8 Salida Ribadesella',
-        hours: { open: '13:00', close: '23:00' }, services: ['parking', 'terraza']
+        hours: { open: '13:00', close: '23:00' }, services: ['parking', 'terraza', 'vegan']
     },
     {
         id: 46, name: 'Restaurante Castro', description: 'Uno de los grandes de la zona occidente en plena Nacional/A-8, especialidad cachopo.',
@@ -296,7 +296,7 @@ export const INITIAL_POIS = [
         id: 47, name: 'San Román de Escalante', description: 'Casona montañesa espectacular con cocina refinada, a solo unos kms de la A-8.',
         photos: ['https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=800&q=80'],
         coords: [43.4350, -3.5180], category: 'Gastro', rating: 4.6, address: 'Barrio San Román s/n, Escalante (Cantabria)',
-        hours: { open: '13:30', close: '23:00' }, services: ['parking', 'wifi', 'ev_charger']
+        hours: { open: '13:30', close: '23:00' }, services: ['parking', 'wifi', 'ev_charger', 'vegan']
     },
     {
         id: 48, name: 'Zarate', description: 'Alta gastronomía vizcaína con una estrella, perfecto en el paso por Bilbao.',
@@ -308,7 +308,7 @@ export const INITIAL_POIS = [
         id: 49, name: 'Sagardotegi Zapiain', description: 'Auténtica sidrería vasca con chuletón en ruta cerquísima de la AP-8.',
         photos: ['https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=800&q=80'],
         coords: [43.2750, -1.9540], category: 'Asador', rating: 4.7, address: 'Kale Nagusia 96, Astigarraga (Gipuzkoa)',
-        hours: { open: '13:00', close: '22:30' }, services: ['parking']
+        hours: { open: '13:00', close: '22:30' }, services: ['parking', 'vegan']
     },
 
     // === Rutas Interiores Varios ===
