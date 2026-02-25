@@ -44,21 +44,16 @@ function regexFallback(transcript, appState) {
     function extractStopCity(text) {
         // Match: "paro en X", "parar en X", "para en X", "pare en X"
         // also: "también paro en X", "quiero parar en X", "voy a parar en X", "me paro en X"
-        // and: "después de Y paro en X", "sí después de Y paro en X"
-        // and: "pasemos por X", "pasar por X", "quiero pasar por X"
         const m1 = text.match(
-            /(?:(?:despu[eé]s\s+de\s+[a-záéíóúñ]+\s+)?)(?:tambi[eé]n\s+)?(?:(?:quiero?|voy\s+a|pues)\s+)?(?:me\s+)?(?:par(?:o|ar?|e|amo?s?)\s+en|pase?mo?s?\s+por)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i
+            /(?:tambi[eé]n\s+)?(?:(?:quiero?|voy\s+a)\s+)?(?:me\s+)?par(?:o|ar?|e)\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i
         );
         if (m1) return cleanCity(m1[1].trim());
-        // Match: "pasando por X", "quiero pasar por X"
-        const m2 = text.match(/(?:tambi[eé]n\s+)?(?:quiero?\s+)?(?:pasar?|pasan?d?o?)\s+por\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        // Match: "paso por X", "pasar por X", "pasando por X"
+        const m2 = text.match(/pasan?d?o?\s+por\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
         if (m2) return cleanCity(m2[1].trim());
         // Match: "parada en X", "hacer parada en X", "una parada en X"
-        const m3 = text.match(/(?:(?:hacer|a[ñn]adir)\s+)?(?:una\s+)?parada\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
+        const m3 = text.match(/(?:hacer\s+)?(?:una\s+)?parada\s+en\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
         if (m3) return cleanCity(m3[1].trim());
-        // Match: "¿y si paramos en X?" / "¿y si pasamos por X?"
-        const m4 = text.match(/(?:(?:y\s+)?si\s+)?(?:paramos\s+en|pasamos\s+por)\s+([a-záéíóúñ][a-z\sáéíóúñ]{1,25})/i);
-        if (m4) return cleanCity(m4[1].trim());
         return null;
     }
 
@@ -94,41 +89,28 @@ function regexFallback(transcript, appState) {
         }
         // City name answer — only if response is short and looks like a city, NOT a full sentence
         if (!/quita|elimina|borra|restaurante|añade|filtro|qué|cómo|dónde|hay|no\s/.test(lower)) {
-            let cleaned = cleanCity(transcript).replace(/^(sí\s+a|pues\s+sí\s+a|sí|pues|bueno)\s+/i, '');
-            // Must be 1-4 words and not contain verbs / sentence structure
-            if (cleaned && cleaned.split(' ').length <= 4 && !/\b(salgo|voy|quiero|paro|quiere|tengo|vamos)\b/.test(lower)) {
+            const cleaned = cleanCity(transcript);
+            // Must be 1-3 words and not contain verbs / sentence structure
+            if (cleaned && cleaned.split(' ').length <= 3 && !/\b(salgo|voy|quiero|paro|quiere|tengo|vamos)\b/.test(lower)) {
                 if (o && d) return { speak: `Parada en ${cleaned} añadida, ruta recalculando.`, action: 'calculate_route', actionArgs: { origin: o, destination: d, waypoints: [cleaned] } };
             }
         }
     }
 
     // ── PRIORITY 3: Remove ─────────────────────────────────────────────────────
-    if (/\b(quita(?:r)?|elimina(?:r)?|borra(?:r)?|saca(?:r)?)\b/.test(lower)) {
-        // Removing a restaurant (Do this first so "quita casa lucio" doesn't trigger city removal)
-        const m = addedRoutePoints.find(p => p.name.toLowerCase().split(/[\s,]+/).some(w => w.length > 2 && lower.includes(w)));
-        if (m) return { speak: `Quitado ${m.name}.`, action: 'remove_poi', actionArgs: { poi: m } };
-
+    if (/quita|elimina|borra|saca/.test(lower)) {
         // Removing a city waypoint
         if (/parada|ciudad|paso|ruta|escala/.test(lower) || !addedRoutePoints.length) {
-            const cityMatch = lower.match(/(?:quita(?:r)?|elimina(?:r)?|borra(?:r)?|saca(?:r)?)(?:\s+(?:la\s+)?parada(?:s)?)?(?:\s+de)?\s+(?:la\s+ruta\s+(?:de\s+)?)?([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
-            let city = cityMatch ? cleanCity(cityMatch[1]) : null;
-            if (city) {
-                city = city.replace(/^(de\s+la\s+ruta|la\s+ruta)$/i, '').trim();
-                if (city.length > 2 && city !== 'la ruta' && city !== 'parada' && city !== 'ruta' && city !== 'la parada') {
-                    return { speak: `${city} quitada de la ruta.`, action: 'remove_waypoint', actionArgs: { waypoints: [city] } };
-                }
-            }
+            const cityMatch = lower.match(/(?:quita|elimina|borra|saca)(?:\s+(?:la\s+)?parada)?(?:\s+de)?\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
+            const city = cityMatch ? cleanCity(cityMatch[1]) : null;
+            if (city) return { speak: `${city} quitada de la ruta.`, action: 'remove_waypoint', actionArgs: { waypoints: [city] } };
         }
-
-        // Try to remove waypoint by name directly
-        const anyCity = lower.match(/(?:quita(?:r)?|elimina(?:r)?|borra(?:r)?|saca(?:r)?)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
-        if (anyCity) {
-            let cleanWait = cleanCity(anyCity[1]);
-            cleanWait = cleanWait.replace(/^(de\s+la\s+ruta|la\s+ruta)$/i, '').trim();
-            if (cleanWait.length > 2 && cleanWait !== 'la parada' && cleanWait !== 'parada' && cleanWait !== 'ruta') {
-                return { speak: `Parada eliminada.`, action: 'remove_waypoint', actionArgs: { waypoints: [cleanWait] } };
-            }
-        }
+        // Removing a restaurant
+        const m = addedRoutePoints.find(p => p.name.toLowerCase().split(/[\s,]+/).some(w => w.length > 2 && lower.includes(w)));
+        if (m) return { speak: `Quitado ${m.name}.`, action: 'remove_poi', actionArgs: { poi: m } };
+        // Try to remove waypoint by name
+        const anyCity = lower.match(/(?:quita|elimina|borra|saca)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i);
+        if (anyCity) return { speak: `Parada eliminada.`, action: 'remove_waypoint', actionArgs: { waypoints: [cleanCity(anyCity[1])] } };
         return { speak: `¿Cuál parada quieres eliminar?`, action: 'none', actionArgs: {} };
     }
 
@@ -144,17 +126,24 @@ function regexFallback(transcript, appState) {
     }
 
     // ── PRIORITY 5: Filters ───────────────────────────────────────────────────
-    const filterMap = { vegano: 'vegan', vegan: 'vegan', vegetariano: 'vegan', wifi: 'wifi', terraza: 'terraza', perro: 'petFriendly', mascota: 'petFriendly', parking: 'parking', cargador: 'evCharger', eléctrico: 'evCharger', abierto: 'openNow' };
-    const filterLabels = { vegan: 'opción vegana', wifi: 'wifi', terraza: 'terraza', petFriendly: 'pet friendly', parking: 'parking', evCharger: 'cargador eléctrico', openNow: 'abiertos ahora' };
-    for (const [kw, key] of Object.entries(filterMap)) {
-        if (lower.includes(kw)) {
-            const matching = poiList.filter(p => p.services?.includes(key));
-            const label = filterLabels[key] || key;
+    // filterKey = camelCase key for activeFilters state; serviceKey = snake_case as stored in POI data
+    const filterDefs = [
+        { words: ['vegano', 'vegan', 'vegana', 'vegetariano'], filterKey: 'vegan', serviceKey: 'vegan', label: 'opción vegana' },
+        { words: ['wifi', 'internet'], filterKey: 'wifi', serviceKey: 'wifi', label: 'wifi' },
+        { words: ['terraza', 'exterior', 'terraza'], filterKey: 'terraza', serviceKey: 'terraza', label: 'terraza' },
+        { words: ['perro', 'mascota', 'animales', 'pet', 'mascotas'], filterKey: 'petFriendly', serviceKey: 'pet_friendly', label: 'pet friendly' },
+        { words: ['parking', 'aparcamiento', 'aparcar'], filterKey: 'parking', serviceKey: 'parking', label: 'parking' },
+        { words: ['cargador', 'eléctrico', 'ev ', 'electrolinera'], filterKey: 'evCharger', serviceKey: 'ev_charger', label: 'cargador eléctrico' },
+        { words: ['abierto', 'abiertos', 'open'], filterKey: 'openNow', serviceKey: null, label: 'abiertos ahora' },
+    ];
+    for (const f of filterDefs) {
+        if (f.words.some(w => lower.includes(w))) {
+            const matching = f.serviceKey ? poiList.filter(p => p.services?.includes(f.serviceKey)) : poiList;
             if (matching.length === 0) {
-                return { speak: `Activado el filtro de ${label}, pero no veo ninguno disponible en tu ruta ahora mismo. ¿Pruebo otro filtro?`, action: 'set_filter', actionArgs: { key, value: true } };
+                return { speak: `Filtro de ${f.label} activado, aunque no veo ninguno disponible en tu ruta ahora mismo.`, action: 'set_filter', actionArgs: { key: f.filterKey, value: true } };
             }
             const names = matching.slice(0, 3).map(p => p.name).join(', ');
-            return { speak: `Filtro de ${label} activado. Hay ${matching.length === 1 ? 'uno' : matching.length} en ruta: ${names}. ¿Quieres añadir alguno a tus paradas?`, action: 'set_filter', actionArgs: { key, value: true } };
+            return { speak: `Filtro de ${f.label} activado. Hay ${matching.length === 1 ? 'uno' : matching.length} en ruta: ${names}. ¿Añadimos alguno?`, action: 'set_filter', actionArgs: { key: f.filterKey, value: true } };
         }
     }
 
@@ -283,7 +272,7 @@ REGLAS (no negociables):
 1. Responde ÚNICAMENTE con JSON válido. Ningún texto fuera del JSON.
 2. Escribe números y horas SIEMPRE en palabras: "13:00"→"las trece", "2h 30min"→"dos horas y media", "4.8"→"cuatro coma ocho", "350 km"→"trescientos cincuenta kilómetros".
 3. origin y destination: SOLO el nombre de la ciudad, SIN preposiciones ni conectores. "Madrid" ✓. "desde Madrid" ✗. "Madrid y voy a" ✗.
-4. Cuando actives un filtro o te pregunten por opciones: fíjate SIEMPRE en la sección "En ruta" de ESTADO DEL VIAJE, NUNCA en el CATÁLOGO COMPLETO. Si "En ruta" dice "Ningún restaurante visible", entonces NO hay opciones.
+4. Cuando actives un filtro: cuenta cuántos restaurantes del catálogo tienen ese servicio y nombra los mejores.
 5. Para hablar de duración/llegada: usa los datos de ESTADO DEL VIAJE.
 6. Sé breve y conversacional. Máximo 2-3 frases.
 7. ¡IMPORTANTE SOBRE RUTAS! Cuando el usuario mencione origen y destino POR PRIMERA VEZ (estado: "Sin ruta planificada") sin especificar paradas, responde con action:"none" preguntando si quiere paradas. Si ya existe una ruta calculada en el estado y el usuario menciona el mismo destino, NO preguntes otra vez — simplemente confirma o recalcula.
@@ -291,7 +280,7 @@ REGLAS (no negociables):
 9. ¡MUY IMPORTANTE! SÓLO puedes añadir restaurantes (action:"add_poi") si están en la sección "En ruta". Si no está en ruta, di que no está de camino.
 10. Si tras tener la ruta calculada el usuario pide una parada en una ciudad o lugar geográfico (NO restaurante): action:"add_waypoint", waypoints:["Ciudad"].
 11. Si quieren quitar una ciudad de la ruta: action:"remove_waypoint", waypoints:["Ciudad"].
-12. ¡MUY IMPORTANTE sobre FILTROS! Cuando actives un filtro (set_filter): NO termines la conversación. Fíjate en "En ruta" y di cuántos restaurantes visibles hay y cita los mejores. Si no hay restaurantes en ruta, dilo claramente. Termina con una pregunta abierta. No respondas con "Listo" sin más.
+12. ¡MUY IMPORTANTE sobre FILTROS! Para "filterKey" usa EXACTAMENTE una de estas: openNow | evCharger | vegan | wifi | terraza | petFriendly | parking. NO uses otra clave diferente. Di cuántos restaurantes hay con ese servicio, nombra los mejores y termina con una pregunta abierta.
 13. Si el usuario vuelve a decir la misma ruta que ya está calculada (ej: ruta ya existe Cádiz→Barcelona y dice "voy de Cádiz a Barcelona"), simplemente confirma la ruta existente con action:"none".
 
 FORMATO JSON (todos los campos, siempre):
@@ -320,7 +309,7 @@ EJEMPLOS:
         { role: 'user', parts: [{ text: transcript }] }
     ];
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
     let res = null;
     let lastError = null;
 

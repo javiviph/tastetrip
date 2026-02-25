@@ -200,6 +200,10 @@ const MapView = () => {
                 zoom={6}
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={false}
+                zoomAnimation={true}
+                wheelPxPerZoomLevel={120}
+                zoomDelta={0.5}
+                zoomSnap={0.5}
             >
                 <TileLayer
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
@@ -230,7 +234,10 @@ const MapView = () => {
                             selectedPoi?.id === poi.id
                         )}
                         eventHandlers={{
-                            click: () => setSelectedPoi(poi),
+                            click: () => {
+                                setSelectedPoi(poi);
+                                document.querySelector(`[data-poi-id="${poi.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            },
                             mouseover: () => setHoveredPoiId(poi.id),
                             mouseout: () => setHoveredPoiId(null)
                         }}

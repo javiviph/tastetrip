@@ -11,6 +11,7 @@ const RoutePlanner = () => {
         totalRoute,
         departureTime, setDepartureTime,
         arrivalTime, setArrivalTime,
+        setAddedRoutePoints,
         setHoveredPoiId,
         setSelectedPoi
     } = useAppContext();

@@ -256,11 +256,129 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         }
     };
 
+    // ── Conversation phase state machine ─────────────────────────────────────
+    // Phases: ASKING_ORIGIN → ASKING_DEST → ASKING_WAYPOINTS → ACTIVE
+    const conversationPhaseRef = useRef('ASKING_ORIGIN');
+
+    // Simple city extractor: strip common travel phrases, return cleaned text
+    const extractCity = (text) => {
+        let s = text.toLowerCase().trim();
+        // Strip leading travel verbs/phrases
+        s = s.replace(/^(salgo desde|salgo de|salgo|voy desde|voy de|vengo de|parto de|me voy de|desde)\s+/i, '');
+        s = s.replace(/^(voy a|hacia|hasta|para|mi destino es|destino)\s+/i, '');
+        s = s.replace(/[¿?.,!]/g, '').trim();
+        // Capitalize first letter
+        if (!s || s.length < 2) return null;
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    };
+
     // ── Process user speech ───────────────────────────────────────────────────
     const processTranscript = async (transcript) => {
         setConversation(prev => [...prev, { role: 'user', text: transcript }]);
         changeState('PROCESSING');
 
+        const lower = transcript.toLowerCase().trim();
+
+        // ── Phase: ASKING_ORIGIN ─────────────────────────────────────────────
+        if (conversationPhaseRef.current === 'ASKING_ORIGIN') {
+            // Try to extract both origin and destination from a single phrase like "de Madrid a Sevilla"
+            const fullRouteRx = /(?:de|desde)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20}?)\s+(?:a|hacia|hasta|para)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20}?)[.,]?\s*$/i;
+            const rm = lower.replace(/^(salgo|voy|parto|vengo)\s+/i, '').match(fullRouteRx);
+            if (rm) {
+                const origin = rm[1].trim().charAt(0).toUpperCase() + rm[1].trim().slice(1);
+                const dest = rm[2].trim().charAt(0).toUpperCase() + rm[2].trim().slice(1);
+                pendingOriginRef.current = origin;
+                pendingDestRef.current = dest;
+                conversationPhaseRef.current = 'ASKING_WAYPOINTS';
+                askedWaypointsForDestRef.current = dest.toLowerCase();
+                const msg = `Perfecto, de ${origin} a ${dest}. ¿Vamos directos o quieres hacer alguna parada?`;
+                window.__lastAssistantQuestion = msg;
+                chatHistoryRef.current.push({ role: 'user', text: transcript });
+                chatHistoryRef.current.push({ role: 'assistant', text: msg });
+                await speak(msg, true);
+                return;
+            }
+
+            const city = extractCity(lower);
+            if (city) {
+                pendingOriginRef.current = city;
+                conversationPhaseRef.current = 'ASKING_DEST';
+                const msg = `¿Y a dónde vas?`;
+                window.__lastAssistantQuestion = msg;
+                chatHistoryRef.current.push({ role: 'user', text: transcript });
+                chatHistoryRef.current.push({ role: 'assistant', text: msg });
+                await speak(msg, true);
+                return;
+            }
+            // Couldn't extract — re-ask
+            await speak(`No he entendido bien. ¿Desde qué ciudad sales?`, true);
+            return;
+        }
+
+        // ── Phase: ASKING_DEST ───────────────────────────────────────────────
+        if (conversationPhaseRef.current === 'ASKING_DEST') {
+            // Also check for full route phrase in case user says "a Madrid desde Bilbao"
+            const fullRouteRx = /(?:de|desde)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20}?)\s+(?:a|hacia|hasta|para)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20}?)[.,]?\s*$/i;
+            const rm = lower.match(fullRouteRx);
+            if (rm) {
+                pendingOriginRef.current = rm[1].trim().charAt(0).toUpperCase() + rm[1].trim().slice(1);
+                pendingDestRef.current = rm[2].trim().charAt(0).toUpperCase() + rm[2].trim().slice(1);
+            } else {
+                const city = extractCity(lower);
+                if (!city) {
+                    await speak(`No he entendido. ¿A qué ciudad vas?`, true);
+                    return;
+                }
+                pendingDestRef.current = city;
+            }
+
+            const dest = pendingDestRef.current;
+            conversationPhaseRef.current = 'ASKING_WAYPOINTS';
+            askedWaypointsForDestRef.current = dest.toLowerCase();
+            const msg = `De ${pendingOriginRef.current} a ${dest}. ¿Vamos directos o quieres parar en algún sitio?`;
+            window.__lastAssistantQuestion = msg;
+            chatHistoryRef.current.push({ role: 'user', text: transcript });
+            chatHistoryRef.current.push({ role: 'assistant', text: msg });
+            await speak(msg, true);
+            return;
+        }
+
+        // ── Phase: ASKING_WAYPOINTS ──────────────────────────────────────────
+        if (conversationPhaseRef.current === 'ASKING_WAYPOINTS') {
+            const isNo = /^(no|nada|directo|directo?s?|sin paradas?|adelante|venga|dale|vamos|sigue|de frente|sin nada|ninguna?)/.test(lower);
+
+            if (isNo) {
+                conversationPhaseRef.current = 'ACTIVE';
+                onSearchRequest(pendingOriginRef.current, pendingDestRef.current, null);
+                setRouteDetails(prev => ({ ...prev, pendingOrigin: null, pendingDest: null }));
+                chatHistoryRef.current.push({ role: 'user', text: transcript });
+                // Route summary triggers from useEffect
+                await speak('', false);
+                return;
+            }
+
+            // Check if user mentions a city as a stop
+            const stopRx = /(?:paro en|parar en|paso por|pasar por|pasando por|parada en|quiero pasar por|quiero parar en|por)\s+([a-záéíóúñ][a-záéíóúñ\s]{1,20})/i;
+            const sm = lower.match(stopRx);
+            const waypoint = sm
+                ? sm[1].trim().charAt(0).toUpperCase() + sm[1].trim().slice(1)
+                : (lower.split(/\s+/).length <= 4 ? extractCity(lower) : null);
+
+            if (waypoint) {
+                conversationPhaseRef.current = 'ACTIVE';
+                onSearchRequest(pendingOriginRef.current, pendingDestRef.current, [waypoint]);
+                setRouteDetails(prev => ({ ...prev, pendingOrigin: null, pendingDest: null }));
+                chatHistoryRef.current.push({ role: 'user', text: transcript });
+                await speak('', false);
+                return;
+            }
+
+            // Ambiguous: re-ask
+            await speak(`¿Vamos directos o hay alguna ciudad por la que quieras pasar?`, true);
+            return;
+        }
+
+        // ── Phase: ACTIVE — delegate to Gemini ───────────────────────────────
         const appState = {
             pois,
             addedRoutePoints,
@@ -277,18 +395,16 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             result = await processAgentTurn(transcript, appState, chatHistoryRef.current);
         } catch (e) {
             console.error('Agent error:', e);
-            speak('Lo siento, ha ocurrido un error. ¿Puedes repetirlo?', !isMobile);
+            await speak('Lo siento, ha ocurrido un error. Inténtalo de nuevo.', false);
             return;
         }
 
-        // Update conversation history for next turn
+        // Update conversation history
         chatHistoryRef.current.push({ role: 'user', text: transcript });
         if (result.speak) chatHistoryRef.current.push({ role: 'assistant', text: result.speak });
-        // Keep history manageable (last 10 turns)
         if (chatHistoryRef.current.length > 20) chatHistoryRef.current = chatHistoryRef.current.slice(-20);
 
-        // Detect if executeAction will intercept and speak itself
-        // (new destination that hasn't been asked about, without waypoints)
+        // Detect if executeAction will intercept (for calculate_route with new dest without waypoints)
         let suppressSpeak = false;
         if (result.action === 'calculate_route') {
             const destination = result.actionArgs?.destination || pendingDestRef.current || routeDetails?.destinationName;
@@ -301,15 +417,12 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             }
         }
 
-        // Execute the action (state change, route calc, etc.)
         if (result.action && result.action !== 'none') {
             executeAction(result.action, result.actionArgs || {});
         }
 
-        // Speak the AI's response (unless suppressed because interceptor will speak)
         if (!suppressSpeak) {
             if (result.speak) window.__lastAssistantQuestion = result.speak;
-            // Always re-listen after speaking — mobile may require user gesture but we try
             await speak(result.speak || null, true);
         }
     };
@@ -360,11 +473,12 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             pendingOriginRef.current = '';
             pendingDestRef.current = '';
             askedWaypointsForDestRef.current = '';
+            conversationPhaseRef.current = 'ASKING_ORIGIN';
             // Pre-request permissions if mobile to avoid initial block if possible
             if (isMobile) {
                 try { navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => { }); } catch (e) { }
             }
-            speak('¡Hola! ¿Desde dónde sales y hacia dónde vas?', true);
+            speak('¡Hola! ¿Desde qué ciudad sales hoy?', true);
         } else {
             isOpenRef.current = false;
             setIsOpen(false);

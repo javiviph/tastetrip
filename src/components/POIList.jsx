@@ -348,7 +348,8 @@ const POIList = () => {
                         const isOpen = isPoiOpenAt(poi, estimatedTime);
                         return (
                             <div
-                                key={poi.id} className="card" onClick={() => setSelectedPoi(poi)}
+                                key={poi.id} className="poi-card"
+                                onClick={() => setSelectedPoi(poi)}
                                 onMouseEnter={() => setHoveredPoiId(poi.id)} onMouseLeave={() => setHoveredPoiId(null)}
                                 style={{ cursor: 'pointer', display: 'flex', gap: '16px', transition: 'all 0.2s ease' }}
                             >
