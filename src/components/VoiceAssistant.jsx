@@ -285,21 +285,28 @@ const VoiceAssistant = ({ onSearchRequest }) => {
     // Phases: ASKING_ORIGIN → ASKING_DEST → ASKING_WAYPOINTS → ACTIVE
     const conversationPhaseRef = useRef('ASKING_ORIGIN');
 
-    // Simple city extractor: strip common travel phrases, return cleaned text
+    // City extractor: strips filler words and travel phrases, returns just the city name
     const extractCity = (text) => {
         let s = text.toLowerCase().trim();
-        // Strip leading travel verbs/phrases
-        s = s.replace(/^(salgo desde|salgo de|salgo|voy desde|voy de|vengo de|parto de|me voy de|desde)\s+/i, '');
-        s = s.replace(/^(voy a|hacia|hasta|para|mi destino es|destino)\s+/i, '');
+        // 1. Strip leading discourse fillers
+        s = s.replace(/^(mira(me)?|oye|oye mira|pues|bueno|a ver|venga|hola|bien|eh|vale|ok|no sé[,]?|es que[,]?)\s+/gi, '');
+        // Repeat in case of multiple fillers (e.g. "mira pues salgo de...")
+        s = s.replace(/^(mira(me)?|oye|pues|bueno|a ver|venga|hola|bien|eh|vale)\s+/gi, '');
+        // 2. Strip leading travel phrases
+        s = s.replace(/^(salgo de nuevo desde|salgo desde|salgo de|salgo|voy desde|voy de|vengo de|parto de|me voy de|desde)\s+/i, '');
+        s = s.replace(/^(voy a|hacia|hasta|para|mi destino es|el destino es|me dirijo a|destino)\s+/i, '');
+        // 3. Strip trailing noise
         s = s.replace(/[¿?.,!]/g, '').trim();
-        // Capitalize first letter
         if (!s || s.length < 2) return null;
-        return s.charAt(0).toUpperCase() + s.slice(1);
+        // 4. If multiple words remain, take only the last 1-2 words (the city tends to be at the end)
+        const words = s.split(/\s+/);
+        // If the result is 1-2 words, use as-is; if longer, take last 2 words (handles "comunidad de madrid" etc)
+        const city = words.length <= 2 ? words.join(' ') : words.slice(-2).join(' ');
+        return city.charAt(0).toUpperCase() + city.slice(1);
     };
 
     // ── Process user speech ───────────────────────────────────────────────────
     const processTranscript = async (transcript) => {
-        setConversation(prev => [...prev, { role: 'user', text: transcript }]);
         changeState('PROCESSING');
 
         const lower = transcript.toLowerCase().trim();
@@ -629,10 +636,6 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                                             : '· Pulsa el orbe para hablar'}
                             </p>
 
-                            {/* Last assistant message subtitle */}
-                            {lastStatus && assistantState !== 'LISTENING' && (
-                                <p className="va-subtitle">{lastStatus}</p>
-                            )}
                         </div>
                     )}
 
