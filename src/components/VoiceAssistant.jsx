@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Mic, MicOff, Loader2, X, Sparkles, MapPin, Trash2 } from 'lucide-react';
+import { Mic, MicOff, Loader2, X, Sparkles, RotateCcw } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { formatDatetimeLocal, isPoiOpenAt, addTimeToTime } from '../utils/time';
 import { minDistanceToRoute, isPoiForward } from '../utils/geo';
 import { processAgentTurn, synthesizeSpeech } from '../utils/ai';
+import { numberToSpanish } from '../utils/numberToSpanish';
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
@@ -41,6 +42,9 @@ const VoiceAssistant = ({ onSearchRequest }) => {
     // Track which destination we already asked the user about stops for
     // (so we don’t ask again if the user repeats the same route)
     const askedWaypointsForDestRef = useRef('');
+    const hasGreetedRef = useRef(false); // remember if we've already greeted this session
+    const lastStatusRef = useRef(''); // last spoken assistant message (for display)
+    const [lastStatus, setLastStatus] = useState('');
 
     // ── Filtered POIs (for context) ──────────────────────────────────────────
     const filteredPois = useMemo(() => {
@@ -79,26 +83,31 @@ const VoiceAssistant = ({ onSearchRequest }) => {
         };
     }, []);
 
-    // ── Auto-summarize when a new route is calculated ──────────────────────────────
+    // ── Auto-summarize when a new route is calculated ─────────────────────────
     const prevRouteKeyRef = useRef('');
     useEffect(() => {
-        // Build a key from origin+dest+waypoints to detect genuine route changes
         const wps = (routeDetails?.waypoints || []).map(w => w.name || '').join(',');
         const key = `${routeDetails?.originName}|${routeDetails?.destinationName}|${wps}`;
         if (isOpen && totalRoute && baseRoute && key && key !== prevRouteKeyRef.current) {
             prevRouteKeyRef.current = key;
-            const km = (totalRoute.distance / 1000).toFixed(0);
+            const km = Math.round(totalRoute.distance / 1000);
             const h = Math.floor(totalRoute.duration / 3600);
             const m = Math.floor((totalRoute.duration % 3600) / 60);
             const count = filteredPois.length;
             const best = [...filteredPois].sort((a, b) => b.rating - a.rating)[0];
 
-            let summary = `Ruta calculada. ${h > 0 ? `${h} hora${h > 1 ? 's' : ''} y ` : ''}${m} minutos, ${km} kilómetros. `;
+            // All numbers as words for TTS
+            const kmWords = numberToSpanish(km);
+            const hWords = h > 0 ? `${numberToSpanish(h)} hora${h > 1 ? 's' : ''} y ` : '';
+            const mWords = `${numberToSpanish(m)} minutos`;
+            const countWords = numberToSpanish(count);
+
+            let summary = `Ruta calculada. ${hWords}${mWords}, ${kmWords} kilómetros. `;
             summary += count > 0
-                ? `Hay ${count} paradas en tu camino${best ? `, y la mejor valorada es ${best.name}` : ''}. ¿Quieres que te cuente más o añadimos alguna?`
+                ? `Hay ${countWords} paradas en tu camino${best ? `, y la mejor valorada es ${best.name}` : ''}. ¿Quieres que te cuente más o añadimos alguna?`
                 : `No encontré paradas con los filtros actuales.`;
 
-            speak(summary, true);  // always re-listen after summary
+            speak(summary, true);
         }
     }, [totalRoute, baseRoute, routeDetails, isOpen]);
 
@@ -111,7 +120,8 @@ const VoiceAssistant = ({ onSearchRequest }) => {
 
         changeState('SPEAKING');
         window.__lastAssistantQuestion = text;
-        setConversation(prev => [...prev, { role: 'assistant', text }]);
+        lastStatusRef.current = text;
+        setLastStatus(text);
 
         // Guard: onFinished must only fire once
         let finished = false;
@@ -501,14 +511,15 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                 try { navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => { }); } catch (e) { }
             }
             if (!aiAssistEnabled) {
-                // AI is disabled — play coming-soon message and close after
-                speak(
-                    '¡Hola! Soy tu asistente en ruta. Muy pronto estaré disponible para ayudarte en tus viajes y crear juntos rutas deliciosas. De momento puedes explorar la plataforma a tu ritmo. ¡Nos vemos pronto!',
-                    false
-                );
-            } else {
+                // AI disabled — just show Coming Soon panel, no auto-greeting
+                return;
+            }
+            if (!hasGreetedRef.current) {
+                // First time opening this session: greet
+                hasGreetedRef.current = true;
                 speak('¡Hola! ¿Desde qué ciudad sales hoy?', true);
             }
+            // If already greeted: just open the panel, user taps mic when ready
         } else {
             isOpenRef.current = false;
             setIsOpen(false);
@@ -517,6 +528,21 @@ const VoiceAssistant = ({ onSearchRequest }) => {
             if (recognitionRef.current) try { recognitionRef.current.abort(); } catch (e) { }
             window.speechSynthesis?.cancel();
         }
+    };
+
+    // ── Reset conversation ────────────────────────────────────────────────────
+    const handleNewConversation = () => {
+        if (recognitionRef.current) try { recognitionRef.current.abort(); } catch (e) { }
+        if (audioRef.current) try { audioRef.current.pause(); } catch (e) { }
+        window.speechSynthesis?.cancel();
+        chatHistoryRef.current = [];
+        pendingOriginRef.current = '';
+        pendingDestRef.current = '';
+        askedWaypointsForDestRef.current = '';
+        conversationPhaseRef.current = 'ASKING_ORIGIN';
+        hasGreetedRef.current = true; // prevents double-greeting
+        setLastStatus('');
+        speak('¡Vamos de nuevo! ¿Desde qué ciudad sales?', true);
     };
 
     const micClickHandler = () => {
@@ -546,207 +572,246 @@ const VoiceAssistant = ({ onSearchRequest }) => {
                             <span className="va-title">TasteTrip AI</span>
                             <span className="va-badge">{aiAssistEnabled ? 'Powered by Gemini' : 'Coming Soon'}</span>
                         </div>
-                        <button onClick={handleToggle} className="va-close"><X size={18} /></button>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                            {aiAssistEnabled && (
+                                <button onClick={handleNewConversation} className="va-close" title="Nueva conversación">
+                                    <RotateCcw size={15} />
+                                </button>
+                            )}
+                            <button onClick={handleToggle} className="va-close"><X size={18} /></button>
+                        </div>
                     </div>
 
-                    {/* Disabled state: Coming Soon screen */}
+                    {/* Body */}
                     {!aiAssistEnabled ? (
-                        <div style={{
-                            flex: 1, display: 'flex', flexDirection: 'column',
-                            alignItems: 'center', justifyContent: 'center',
-                            padding: '40px 24px', gap: '16px', textAlign: 'center',
-                            background: 'var(--bg-offset)'
-                        }}>
-                            <div style={{
-                                width: '72px', height: '72px', borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                boxShadow: '0 0 32px rgba(79,70,229,0.3)',
-                                animation: 'va-pulse 2.5s ease-in-out infinite'
-                            }}>
+                        // ── Coming Soon ──────────────────────────────────────
+                        <div className="va-orb-area">
+                            <div className="va-orb va-orb-coming">
                                 <Sparkles size={32} color="white" />
                             </div>
-                            <div>
-                                <h3 style={{ fontWeight: '800', fontSize: '18px', margin: '0 0 8px' }}>Coming Soon</h3>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1.6, margin: 0 }}>
-                                    Muy pronto estaré disponible para ayudarte en tus viajes y crear juntos rutas deliciosas.
-                                    De momento, explora la plataforma a tu ritmo.
-                                </p>
-                            </div>
-                            <span style={{
-                                fontSize: '11px', fontWeight: '700', padding: '4px 12px',
-                                borderRadius: '20px', letterSpacing: '0.08em',
-                                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                                color: 'white'
-                            }}>BETA · PRÓXIMAMENTE</span>
+                            <p className="va-orb-title">Coming Soon</p>
+                            <p className="va-orb-subtitle">
+                                Muy pronto estaré disponible para acompañarte en cada viaje.
+                            </p>
+                            <span className="va-badge" style={{ marginTop: '4px' }}>BETA · PRÓXIMAMENTE</span>
                         </div>
                     ) : (
-                        <>
-                            {/* Chat */}
-                            <div className="va-chat">
-                                {conversation.length === 0 && (
-                                    <div className="va-empty">
-                                        <Sparkles size={28} className="va-empty-icon" />
-                                        <p>Iniciando asistente...</p>
-                                    </div>
-                                )}
-                                {conversation.map((msg, i) => (
-                                    <div key={i} className={`va-bubble va-bubble-${msg.role}`}>
-                                        {msg.text}
-                                    </div>
+                        // ── Active assistant ─────────────────────────────────
+                        <div className="va-orb-area">
+                            {/* Central orb — reacts to state */}
+                            <div className={`va-orb va-orb-${assistantState.toLowerCase()}`}>
+                                {assistantState === 'PROCESSING'
+                                    ? <Loader2 size={30} className="va-spin" />
+                                    : assistantState === 'LISTENING'
+                                        ? <MicOff size={30} />
+                                        : <Mic size={30} />}
+                                {/* Ripples when speaking */}
+                                {assistantState === 'SPEAKING' && <>
+                                    <span className="va-ripple va-ripple-1" />
+                                    <span className="va-ripple va-ripple-2" />
+                                    <span className="va-ripple va-ripple-3" />
+                                </>}
+                            </div>
+
+                            {/* Wave bars (listening) */}
+                            <div className="va-bars">
+                                {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                                    <div key={i} className={`va-bar ${assistantState === 'LISTENING' ? 'va-bar-active' : ''} ${assistantState === 'SPEAKING' ? 'va-bar-speaking' : ''}`}
+                                        style={{ animationDelay: `${i * 0.1}s` }} />
                                 ))}
-                                <div ref={conversationEndRef} />
                             </div>
 
-                            {/* Added route stops pill list */}
-                            {addedRoutePoints.length > 0 && (
-                                <div className="va-stops">
-                                    <span className="va-stops-label">Paradas:</span>
-                                    {addedRoutePoints.map(p => (
-                                        <span key={p.id} className="va-stop-pill">
-                                            <MapPin size={10} />
-                                            {p.name}
-                                            <button onClick={() => setAddedRoutePoints(prev => prev.filter(x => x.id !== p.id))} className="va-stop-remove">
-                                                <Trash2 size={10} />
-                                            </button>
-                                        </span>
-                                    ))}
-                                </div>
+                            {/* State label */}
+                            <p className="va-state-label">
+                                {assistantState === 'LISTENING' ? '🎙 Te escucho...'
+                                    : assistantState === 'PROCESSING' ? '✦ Pensando...'
+                                        : assistantState === 'SPEAKING' ? '◎ Hablando...'
+                                            : '· Pulsa el orbe para hablar'}
+                            </p>
+
+                            {/* Last assistant message subtitle */}
+                            {lastStatus && assistantState !== 'LISTENING' && (
+                                <p className="va-subtitle">{lastStatus}</p>
                             )}
+                        </div>
+                    )}
 
-                            {/* Footer */}
-                            <div className="va-footer">
-                                <div className="va-waves">
-                                    {assistantState === 'LISTENING' && [1, 2, 3, 4, 5].map(i => (
-                                        <div key={i} className="va-wave" style={{ animationDelay: `${i * 0.1}s` }} />
-                                    ))}
-                                </div>
-                                <button
-                                    onClick={micClickHandler}
-                                    disabled={assistantState === 'PROCESSING' || assistantState === 'SPEAKING'}
-                                    className={`va-mic ${assistantState === 'LISTENING' ? 'va-mic-active' : ''} ${assistantState === 'PROCESSING' || assistantState === 'SPEAKING' ? 'va-mic-busy' : ''}`}
-                                >
-                                    {assistantState === 'PROCESSING' ? <Loader2 size={22} className="va-spin" />
-                                        : assistantState === 'LISTENING' ? <MicOff size={22} />
-                                            : <Mic size={22} />}
-                                </button>
-                                <div className="va-status">
-                                    {assistantState === 'LISTENING' ? 'Te escucho...'
-                                        : assistantState === 'PROCESSING' ? 'Pensando...'
+                    {/* Footer mic button (only in active mode) */}
+                    {aiAssistEnabled && (
+                        <div className="va-footer-slim">
+                            <button
+                                onClick={micClickHandler}
+                                disabled={assistantState === 'PROCESSING' || assistantState === 'SPEAKING'}
+                                className={`va-mic-btn ${assistantState === 'LISTENING' ? 'va-mic-listening' : ''} ${assistantState === 'PROCESSING' || assistantState === 'SPEAKING' ? 'va-mic-busy' : ''}`}
+                            >
+                                {assistantState === 'PROCESSING' ? <Loader2 size={20} className="va-spin" />
+                                    : assistantState === 'LISTENING' ? <MicOff size={20} />
+                                        : <Mic size={20} />}
+                                <span>
+                                    {assistantState === 'LISTENING' ? 'Detener'
+                                        : assistantState === 'PROCESSING' ? 'Procesando'
                                             : assistantState === 'SPEAKING' ? 'Hablando...'
-                                                : 'Pulsa para hablar'}
-                                </div>
-                            </div>
-                        </>
+                                                : 'Hablar'}
+                                </span>
+                            </button>
+                        </div>
                     )}
                 </div>
             )}
 
             <style>{`
+                /* FAB */
                 .va-fab {
                     position: fixed; bottom: 28px; right: 28px; width: 64px; height: 64px;
                     border-radius: 50%; background: linear-gradient(135deg, var(--primary), #ff6b2b);
                     border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
-                    box-shadow: 0 8px 24px rgba(255,77,0,0.35); z-index: 9999;
-                    transition: transform 0.2s; position: fixed;
+                    box-shadow: 0 8px 24px rgba(255,77,0,0.35); z-index: 9999; transition: transform 0.2s;
                 }
                 .va-fab:hover { transform: scale(1.08); }
                 .va-fab-pulse {
                     position: absolute; inset: 0; border-radius: 50%; background: var(--primary);
-                    opacity: 0.3; animation: va-pulse 2s infinite;
+                    opacity: 0.3; animation: va-pulse-ring 2s infinite;
                 }
-                @keyframes va-pulse { 0%{transform:scale(1);opacity:.4} 100%{transform:scale(1.6);opacity:0} }
 
+                /* Panel */
                 .va-panel {
-                    position: fixed; bottom: 28px; right: 28px; width: calc(100vw - 32px); max-width: 380px; max-height: 600px;
+                    position: fixed; bottom: 28px; right: 28px;
+                    width: calc(100vw - 32px); max-width: 340px;
                     background: var(--bg); border: 1px solid var(--border); border-radius: 28px;
-                    box-shadow: 0 20px 60px rgba(0,0,0,0.2); z-index: 10000;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.25); z-index: 10000;
                     display: flex; flex-direction: column; overflow: hidden;
                     animation: va-appear 0.35s cubic-bezier(0.175,0.885,0.32,1.275);
                 }
-                @keyframes va-appear { from{transform:translateY(80px) scale(0.85);opacity:0} to{transform:none;opacity:1} }
+                @keyframes va-appear { from{transform:translateY(70px) scale(0.88);opacity:0} to{transform:none;opacity:1} }
 
+                /* Header */
                 .va-header {
                     display: flex; align-items: center; justify-content: space-between;
-                    padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg);
+                    padding: 14px 18px; border-bottom: 1px solid var(--border);
                 }
                 .va-header-left { display: flex; align-items: center; gap: 10px; }
-                .va-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; animation: va-pulse 2s infinite; }
-                .va-dot-off { background: #9ca3af; box-shadow: none; animation: none; }
-                .va-title { font-weight: 800; font-size: 15px; }
+                .va-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; animation: va-pulse-ring 2s infinite; }
+                .va-dot-off { background: #9ca3af !important; box-shadow: none !important; animation: none !important; }
+                .va-title { font-weight: 800; font-size: 14px; }
                 .va-badge {
                     font-size: 10px; padding: 2px 8px; border-radius: 20px;
                     background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; font-weight: 600;
                 }
                 .va-close {
                     padding: 6px; border-radius: 10px; background: var(--bg-offset);
-                    border: none; cursor: pointer; color: var(--text-muted);
+                    border: none; cursor: pointer; color: var(--text-muted); display:flex; align-items:center;
                 }
                 .va-close:hover { background: var(--border); }
 
-                .va-chat {
-                    flex: 1; overflow-y: auto; padding: 16px; display: flex;
-                    flex-direction: column; gap: 10px; background: var(--bg-offset);
-                    min-height: 200px;
-                }
-                .va-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: var(--text-muted); gap: 10px; padding: 40px 0; }
-                .va-empty-icon { color: var(--primary); animation: va-pulse 2s infinite; }
-
-                .va-bubble {
-                    max-width: 82%; padding: 12px 16px; border-radius: 18px;
-                    font-size: 14px; line-height: 1.5;
-                }
-                .va-bubble-assistant {
-                    align-self: flex-start; background: var(--bg); border: 1px solid var(--border);
-                    border-radius: 4px 18px 18px 18px;
-                }
-                .va-bubble-user {
-                    align-self: flex-end; background: var(--primary); color: white;
-                    border-radius: 18px 18px 4px 18px;
+                /* Orb area */
+                .va-orb-area {
+                    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    padding: 36px 24px 24px; gap: 12px; text-align: center;
+                    background: radial-gradient(ellipse at 50% 30%, rgba(255,77,0,0.05) 0%, transparent 70%);
+                    min-height: 260px;
                 }
 
-                .va-stops {
-                    padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-                    border-top: 1px solid var(--border); background: var(--bg);
+                /* Central orb */
+                .va-orb {
+                    width: 88px; height: 88px; border-radius: 50%; position: relative;
+                    display: flex; align-items: center; justify-content: center; color: white;
+                    transition: all 0.4s ease;
                 }
-                .va-stops-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-                .va-stop-pill {
-                    display: flex; align-items: center; gap: 4px; padding: 3px 8px 3px 6px;
-                    background: var(--bg-offset); border: 1px solid var(--border); border-radius: 20px;
-                    font-size: 11px; font-weight: 600; color: var(--text);
+                .va-orb-idle {
+                    background: linear-gradient(135deg, var(--primary), #ff6b2b);
+                    box-shadow: 0 8px 32px rgba(255,77,0,0.3);
+                    cursor: pointer;
                 }
-                .va-stop-remove {
-                    background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 0; display: flex;
-                    align-items: center;
+                .va-orb-idle:hover { transform: scale(1.05); }
+                .va-orb-listening {
+                    background: linear-gradient(135deg, #ef4444, #dc2626);
+                    box-shadow: 0 0 0 8px rgba(239,68,68,0.15), 0 8px 32px rgba(239,68,68,0.4);
+                    animation: va-orb-pulse 1.2s ease-in-out infinite;
+                    cursor: pointer;
                 }
-                .va-stop-remove:hover { color: #ef4444; }
+                .va-orb-speaking {
+                    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+                    box-shadow: 0 8px 32px rgba(79,70,229,0.4);
+                }
+                .va-orb-processing {
+                    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+                    box-shadow: 0 8px 32px rgba(14,165,233,0.4);
+                    animation: va-orb-pulse 1.5s ease-in-out infinite;
+                }
+                .va-orb-coming {
+                    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+                    box-shadow: 0 0 32px rgba(79,70,229,0.3);
+                    animation: va-orb-pulse 2.5s ease-in-out infinite;
+                }
 
-                .va-footer {
-                    padding: 14px 20px; background: var(--bg); border-top: 1px solid var(--border);
-                    display: flex; flex-direction: column; align-items: center; gap: 8px;
+                /* Ripples (speaking) */
+                .va-ripple {
+                    position: absolute; inset: 0; border-radius: 50%;
+                    border: 2px solid rgba(79,70,229,0.4);
+                    animation: va-ripple-out 2s ease-out infinite;
                 }
-                .va-waves { height: 18px; display: flex; align-items: flex-end; gap: 3px; }
-                .va-wave {
-                    width: 3px; height: 6px; background: #ef4444; border-radius: 2px;
-                    animation: va-wave 0.8s ease-in-out infinite alternate;
+                .va-ripple-2 { animation-delay: 0.5s; }
+                .va-ripple-3 { animation-delay: 1s; }
+                @keyframes va-ripple-out {
+                    0% { transform: scale(1); opacity: 0.6; }
+                    100% { transform: scale(2.2); opacity: 0; }
                 }
-                @keyframes va-wave { to { height: 18px; } }
 
-                .va-mic {
-                    width: 58px; height: 58px; border-radius: 50%; background: var(--primary);
-                    color: white; border: none; cursor: pointer; display: flex; align-items: center;
-                    justify-content: center; transition: all 0.25s; box-shadow: 0 4px 16px rgba(255,77,0,0.3);
+                /* Wave bars */
+                .va-bars { display: flex; align-items: center; gap: 4px; height: 24px; }
+                .va-bar {
+                    width: 3px; height: 4px; border-radius: 2px;
+                    background: var(--border); transition: background 0.3s;
                 }
-                .va-mic:hover:not(:disabled) { transform: scale(1.07); }
-                .va-mic-active { background: #ef4444 !important; box-shadow: 0 0 0 6px rgba(239,68,68,0.2); transform: scale(1.08); }
-                .va-mic-busy { background: var(--text-muted) !important; cursor: not-allowed; opacity: 0.7; box-shadow: none; }
-                .va-spin { animation: spin 1s linear infinite; }
-                @keyframes spin { to { transform: rotate(360deg); } }
+                .va-bar-active {
+                    background: #ef4444;
+                    animation: va-wave-bar 0.6s ease-in-out infinite alternate;
+                }
+                .va-bar-speaking {
+                    background: #4f46e5;
+                    animation: va-wave-bar 0.8s ease-in-out infinite alternate;
+                }
+                @keyframes va-wave-bar { to { height: 20px; } }
 
-                .va-status { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+                .va-state-label { font-size: 13px; color: var(--text-muted); font-weight: 500; margin: 0; }
+                .va-subtitle {
+                    font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 0;
+                    max-height: 60px; overflow: hidden; opacity: 0.8;
+                    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+                }
+                .va-orb-title { font-weight: 800; font-size: 18px; margin: 0; }
+                .va-orb-subtitle { color: var(--text-muted); font-size: 13px; line-height: 1.6; margin: 0; }
+
+                /* Footer mic */
+                .va-footer-slim {
+                    padding: 14px 20px 18px; display: flex; justify-content: center;
+                    border-top: 1px solid var(--border);
+                }
+                .va-mic-btn {
+                    display: flex; align-items: center; gap: 8px; padding: 12px 28px;
+                    background: linear-gradient(135deg, var(--primary), #ff6b2b);
+                    color: white; border: none; border-radius: 50px; cursor: pointer;
+                    font-weight: 700; font-size: 14px;
+                    box-shadow: 0 4px 16px rgba(255,77,0,0.3);
+                    transition: all 0.2s;
+                }
+                .va-mic-btn:hover:not(:disabled) { transform: scale(1.04); opacity: 0.93; }
+                .va-mic-listening {
+                    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+                    box-shadow: 0 0 0 4px rgba(239,68,68,0.2), 0 4px 16px rgba(239,68,68,0.4) !important;
+                }
+                .va-mic-busy { opacity: 0.5; cursor: not-allowed !important; transform: none !important; }
+
+                /* Animations */
+                @keyframes va-orb-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+                @keyframes va-pulse-ring { 0%{transform:scale(1);opacity:.4} 100%{transform:scale(1.6);opacity:0} }
+                .va-spin { animation: va-spin 1s linear infinite; }
+                @keyframes va-spin { to { transform: rotate(360deg); } }
             `}</style>
         </>
     );
 };
 
 export default VoiceAssistant;
+
+
