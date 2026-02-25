@@ -21,10 +21,17 @@ const Navbar = () => {
     const [showPwd, setShowPwd] = useState(false);
     const [shaking, setShaking] = useState(false);
 
+    // If already authenticated this session, skip modal
+    const isAdminAuthed = () => sessionStorage.getItem('tt_admin_auth') === '1';
+
     const handleAdminClick = () => {
         if (userRole === 'admin') {
-            // Already admin — click again to log out
             setUserRole('traveler');
+            return;
+        }
+        // Already authenticated this session — go straight in
+        if (isAdminAuthed()) {
+            setUserRole('admin');
             return;
         }
         setShowModal(true);
@@ -35,6 +42,7 @@ const Navbar = () => {
     const handleLogin = async () => {
         const hash = await sha256(password);
         if (hash === ADMIN_PASSWORD_HASH) {
+            sessionStorage.setItem('tt_admin_auth', '1'); // remember for this session
             setUserRole('admin');
             setShowModal(false);
             setPassword('');
